@@ -216,6 +216,66 @@ public:
 };
 
 // -----------------------------------------------------------
+// Triangle primitive
+// Just a triangle (with normal and centroid?).
+// Should probably remove this when we start using meshes,
+// with vertices and triangles just being defined as a list of indices
+// -----------------------------------------------------------
+class Triangle {
+public:
+	Triangle() = default;
+	Triangle(float3 v0, float3 v1, float3 v2) : vertex0(v0), vertex1(v1), vertex2(v2) {
+		centroid = (v0 + v1 + v2) / 3.0;
+		normal = normalize(cross((v1 - v0), (v2 - v0)));
+		albedo = float3(1.f, 0.f, 0.f);
+	}
+	Triangle(float3 v0, float3 v1, float3 v2, float3 color) : vertex0(v0), vertex1(v1), vertex2(v2), albedo(color) {
+		centroid = (v0 + v1 + v2) / 3.0;
+		normal = normalize(cross((v1 - v0), (v2 - v0)));
+	}
+	// Ripped straight from your BVH Tutorial, Jacco <3
+	void Intersect(Ray& ray) const
+	{
+		const float3 edge1 = vertex1 - vertex0;
+		const float3 edge2 = vertex2 - vertex0;
+		const float3 h = cross(ray.D, edge2);
+		const float a = dot(edge1, h);
+		if (a > -0.0001f && a < 0.0001f) return; // ray parallel to triangle
+		const float f = 1 / a;
+		const float3 s = ray.O - vertex0;
+		const float u = f * dot(s, h);
+		if (u < 0 || u > 1) return;
+		const float3 q = cross(s, edge1);
+		const float v = f * dot(ray.D, q);
+		if (v < 0 || u + v > 1) return;
+		const float t = f * dot(edge2, q);
+		if (t > 0.0001f && t < ray.t) {
+			ray.t = t;
+			ray.objIdx = idx;
+		}
+	}
+	float3 GetNormal() const 
+	{
+		return normal;
+		//return float3(0, 0, -1);
+	}
+	float3 GetAlbedo() const 
+	{
+		return albedo;
+		//return float3(0.93f);
+	}
+	union {
+		struct { float3 vertex0, vertex1, vertex2; };
+		float3 cell[3];
+	};
+	int idx = 10;
+	float3& operator [] (const bool n) { return cell[n]; }
+	float3 centroid;
+	float3 albedo;
+	float3 normal;
+};
+
+// -----------------------------------------------------------
 // Quad primitive
 // Oriented quad, intended to be used as a light source.
 // -----------------------------------------------------------
@@ -278,6 +338,7 @@ public:
 		plane[3] = Plane( 7, float3( 0, -1, 0 ), 2 );			// 7: ceiling
 		plane[4] = Plane( 8, float3( 0, 0, 1 ), 3 );			// 8: front wall
 		plane[5] = Plane( 9, float3( 0, 0, -1 ), 3.99f );		// 9: back wall
+		triangle = Triangle(float3(-0.9f, 0, -1), float3(0.2f, 0, -1), float3(0, 1.0f, 0)); // 10: triangle
 		SetTime( 0 );
 		// Note: once we have triangle support we should get rid of the class
 		// hierarchy: virtuals reduce performance somewhat.
@@ -321,6 +382,7 @@ public:
 		sphere.Intersect( ray );
 		sphere2.Intersect( ray );
 		cube.Intersect( ray );
+		triangle.Intersect(ray);
 	}
 	bool IsOccluded( Ray& ray ) const
 	{
@@ -330,6 +392,7 @@ public:
 		sphere.Intersect( ray );
 		sphere2.Intersect( ray );
 		cube.Intersect( ray );
+		triangle.Intersect(ray);
 		return ray.t < rayLength;
 		// technically this is wasteful: 
 		// - we potentially search beyond rayLength
@@ -342,10 +405,11 @@ public:
 		// this way we prevent calculating it multiple times.
 		if (objIdx == -1) return float3( 0 ); // or perhaps we should just crash
 		float3 N;
-		if (objIdx == 0) N = quad.GetNormal( I );
-		else if (objIdx == 1) N = sphere.GetNormal( I );
-		else if (objIdx == 2) N = sphere2.GetNormal( I );
-		else if (objIdx == 3) N = cube.GetNormal( I );
+		if (objIdx == 0) N = quad.GetNormal(I);
+		else if (objIdx == 1) N = sphere.GetNormal(I);
+		else if (objIdx == 2) N = sphere2.GetNormal(I);
+		else if (objIdx == 3) N = cube.GetNormal(I);
+		else if (objIdx == 10) N = triangle.GetNormal();
 		else 
 		{
 			// faster to handle the 6 planes without a call to GetNormal
@@ -362,6 +426,7 @@ public:
 		if (objIdx == 1) return sphere.GetAlbedo( I );
 		if (objIdx == 2) return sphere2.GetAlbedo( I );
 		if (objIdx == 3) return cube.GetAlbedo( I );
+		if (objIdx == 10) return triangle.GetAlbedo();
 		return plane[objIdx - 4].GetAlbedo( I );
 		// once we have triangle support, we should pass objIdx and the bary-
 		// centric coordinates of the hit, instead of the intersection location.
@@ -378,6 +443,7 @@ public:
 	}
 	__declspec(align(64)) // start a new cacheline here
 	float animTime = 0;
+	Triangle triangle;
 	Quad quad;
 	Sphere sphere;
 	Sphere sphere2;
