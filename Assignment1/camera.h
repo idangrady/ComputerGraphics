@@ -23,23 +23,33 @@ public:
 
 	}
 
-	void move(float speed, float3 norm,  float3 side) {
-		camPos += speed * norm* side;
-		topRight += speed * norm* side;
-		bottomLeft += speed * norm* side;
-		topLeft += speed * norm * side;
+	void move(float speed, float3 dircm_dir) {
+		//float3 dircm_dir = getdirection()* side;
+		camPos += speed * dircm_dir ;
+		topRight += speed * dircm_dir ;
+		bottomLeft += speed * dircm_dir ;
+		topLeft += speed * dircm_dir ;
 	}
 	float3 getdirection() {
 		return normalize((topRight - bottomLeft)/2 - camPos );
 	}
 
+	void rotate_camAxis(mat4 TMatrix)
+	{
+
+			auto ss = topLeft - camPos;
+			topLeft =  ((float3)(TMatrix * (topLeft - camPos)) + camPos);
+			topRight =  ((float3)(TMatrix * (topRight - camPos)) + camPos);
+			bottomLeft = ((float3)(TMatrix * (bottomLeft - camPos)) + camPos);
+		
+	}
+
 	void rotate_cam(float3 rot)
 	{
-		//auto translated = mat.Translate(camPos);
-		/*mat4 c = mat.Rotate(topLeft - camPos, angular) + translated;*/
 		if (rot.x + rot.y + rot.z != 0)
 		{
-			mat4 TMatrix = mat4::Rotate(normalize(rot), sqrt(dot(rot, rot)));
+			mat4 TMatrix = mat4::Rotate(normalize(rot), length(rot));
+			auto ss = topLeft - camPos;
 			topLeft = (float3)(TMatrix * (topLeft - camPos)) + camPos;
 			topRight = (float3)(TMatrix * (topRight - camPos)) + camPos;
 			bottomLeft = (float3)(TMatrix * (bottomLeft - camPos)) + camPos;
@@ -59,8 +69,10 @@ public:
 		return Ray( camPos, normalize( P - camPos ) );
 	}
 	float aspect = (float)SCRWIDTH / (float)SCRHEIGHT;
+	float ZoomLevel = 1.0f;
 	float3 camPos;
 	float3 topLeft, topRight, bottomLeft;
+	
 
 
 	//mat4 mat = mat4();

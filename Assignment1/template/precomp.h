@@ -641,6 +641,9 @@ inline void operator-=( uint2& a, const uint2& b ) { a.x -= b.x;	a.y -= b.y; }
 inline uint2 operator-( const uint2& a, uint b ) { return make_uint2( a.x - b, a.y - b ); }
 inline uint2 operator-( uint b, const uint2& a ) { return make_uint2( b - a.x, b - a.y ); }
 inline void operator-=( uint2& a, uint b ) { a.x -= b;	a.y -= b; }
+inline bool operator==(int2  a, int2 b) { if (a.x == b.x && a.y == b.y)return true; else false; } //Added Operator
+inline bool operator!=(int2  a, int2 b) { if (a.x != b.x && a.y != b.y)return true; else false; } //Added Operator
+
 inline float3 operator-( const float3& a, const float3& b ) { return make_float3( a.x - b.x, a.y - b.y, a.z - b.z ); }
 inline float3 operator-( const float3& a, const int3& b ) { return make_float3( a.x - (float)b.x, a.y - (float)b.y, a.z - (float)b.z ); }
 inline float3 operator-( const float3& a, const uint3& b ) { return make_float3( a.x - (float)b.x, a.y - (float)b.y, a.z - (float)b.z ); }
