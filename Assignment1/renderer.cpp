@@ -1,5 +1,4 @@
 #include "precomp.h"
-#include "userInput.h"
 // -----------------------------------------------------------
 // Initialize the renderer
 // -----------------------------------------------------------
@@ -9,8 +8,9 @@ void Renderer::Init()
 	accumulator = (float4*)MALLOC64( SCRWIDTH * SCRHEIGHT * 16 );
 	memset( accumulator, 0, SCRWIDTH * SCRHEIGHT * 16 );
 	
-
-	mousePos = User.get_mouse();
+	POINT cursorPosition;
+	GetCursorPos(&cursorPosition);
+	mousePos = int2(cursorPosition.x, cursorPosition.y);
 }
 
 // -----------------------------------------------------------
@@ -33,11 +33,13 @@ float3 Renderer::Trace( Ray& ray )
 // -----------------------------------------------------------
 void Renderer::Tick( float deltaTime )
 {
-
-	updateKey(deltaTime);
 	// animation
 	static float animTime = 0;
 	scene.SetTime( animTime += deltaTime * 0.002f );
+
+	//Camera
+	const float speed = 0.2f;
+	camera.move(mov, speed);
 	// pixel loop
 	Timer t;
 	// lines are executed as OpenMP parallel tasks (disabled in DEBUG)
@@ -58,70 +60,33 @@ void Renderer::Tick( float deltaTime )
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
 	if (alpha > 0.05f) alpha *= 0.5f;
 	float fps = 1000 / avg, rps = (SCRWIDTH * SCRHEIGHT) * fps;
-	printf( "%5.2fms (%.1fps) - %.1fMrays/s\n", avg, fps, rps / 1000000 );
+	//printf( "%5.2fms (%.1fps) - %.1fMrays/s\n", avg, fps, rps / 1000000 );
 }
 
+void Tmpl8::Renderer::MouseMove(int x, int y)
+{
+	int2 mouseDiff = mousePos - int2(x, y);
+	const float angular_speed = 0.003f;
+	camera.rotate(mouseDiff, angular_speed);
+	mousePos = int2(x, y);
+}
 
-void Renderer::updateKey(float deltaT) {
-	float3 norm = normalize(camera.topLeft - camera.topRight);
-	int action = User.get_input();
+void Tmpl8::Renderer::KeyUp(int key)
+{
+	if (key == 0x57) mov -= float3(0, 0, 1);  // W
+	if (key == 0x41) mov -= float3(-1, 0, 0);  //A
+	if (key == 0x53) mov -= float3(0, 0, -1); //S
+	if (key == 0x44) mov -= float3(1, 0, 0);; //D
+	if (key == VK_SPACE) mov -= float3(0, 1, 0); // Space bar
+	if (key == 0x43) mov -= float3(0, -1, 0); // C
+}
 
-	float angular = PI / 2 * 0.003f;
-	float speed = 0.001f * deltaT;
-	float3 direction = camera.getdirection();
-	float3 forward = direction;
-	float3 side = normalize(camera.topRight - camera.topLeft);
-
-	
-	int2 curMousePose = User.get_mouse();
-
-	if (curMousePose != mousePos) {
-		camera.rotate_cam(normalize(float3(0, (mousePos-curMousePose ).x, 0)) * speed*0.3);
-		MouseMove(curMousePose.x, curMousePose.y);
-	}
-
-	switch (action)
-	{
-	case 1:
-		camera.move(speed, side, false);
-
-		break;
-	case 2:
-
-		camera.move(-speed, side, false);
-
-		break;
-	case 3:
-		camera.move(speed, forward, false);
-		break;
-	case 4:
-		camera.move(-speed, forward, false);
-		break;
-	case 5:
-		camera.rotate_cam(normalize(float3(0, -angular, 0))*speed);
-		break;
-	case 6:
-		camera.rotate_cam(normalize(float3(0, angular, 0))*speed);
-		break;
-	case 7:
-		camera.zoom(speed * 10);
-
-		//camera.rotate_cam(normalize(float3(1, 0, 0))*speed);
-		break;
-	case 8:
-		camera.zoom(-speed * 10);
-
-		//camera.rotate_cam(normalize(float3(1, 0, 0))*-speed);
-		break;
-	case 9:
-		camera.zoom(speed*10);
-		break;
-	case 10:
-		camera.zoom(-speed * 10);
-		break;
-
-	}
-
-
-
-};
+void Tmpl8::Renderer::KeyDown(int key)
+{
+	if (key == 0x57) mov += float3(0, 0, 1);  // W
+	if (key == 0x41) mov += float3(-1, 0, 0);  //A
+	if (key == 0x53) mov += float3(0, 0, -1); //S
+	if (key == 0x44) mov += float3(1, 0, 0);; //D
+	if (key == VK_SPACE) mov += float3(0, 1, 0); // Space bar
+	if (key == 0x43) mov += float3(0, -1, 0); // C
+}

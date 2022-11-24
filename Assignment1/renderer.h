@@ -1,6 +1,5 @@
 #pragma once
 
-#include "userInput.h"
 namespace Tmpl8
 {
 
@@ -15,21 +14,17 @@ namespace Tmpl8
 		// input handling
 		void MouseUp(int button) { /* implement if you want to detect mouse button presses */ }
 		void MouseDown(int button) { /* implement if you want to detect mouse button presses */ }
-		void MouseMove(int x, int y) { mousePos.x = x, mousePos.y = y; }
+		void MouseMove(int x, int y);
 		void MouseWheel(float y) { /* implement if you want to handle the mouse wheel */ }
-		void KeyUp(int key) { /* implement if you want to handle keys */ }
-		void KeyDown(int key) { /* implement if you want to handle keys */ }
-		void updateKey(float deltaT);
+		void KeyUp(int key);
+		void KeyDown(int key);
 
 		// data members
 		int2 mousePos;
 		float4* accumulator;
+		float3 mov;
 		Scene scene;
 		Camera camera;
-		UserInput User;
-
-		float deltaT;
-
 	};
 
 } // namespace Tmpl8
