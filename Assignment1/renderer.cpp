@@ -34,7 +34,7 @@ float3 Renderer::Trace( Ray& ray )
 void Renderer::Tick( float deltaTime )
 {
 
-	updateKey();
+	updateKey(deltaTime);
 	// animation
 	static float animTime = 0;
 	scene.SetTime( animTime += deltaTime * 0.002f );
@@ -62,18 +62,17 @@ void Renderer::Tick( float deltaTime )
 }
 
 
-void Renderer::updateKey() {
+void Renderer::updateKey(float deltaT) {
 	float3 norm = normalize(camera.topLeft - camera.topRight);
 	int action = User.get_input();
 
-
 	float angular = PI / 2 * 0.003f;
-	float speed = 0.1f;
+	float speed = 0.001f * deltaT;
 	float3 direction = camera.getdirection();
-	float3 forward = direction * float3(0, 0, 1);
+	float3 forward = direction;
 	float3 side = normalize(camera.topRight - camera.topLeft);
 
-
+	
 	int2 curMousePose = User.get_mouse();
 
 	if (curMousePose != mousePos) {
@@ -81,20 +80,22 @@ void Renderer::updateKey() {
 		MouseMove(curMousePose.x, curMousePose.y);
 	}
 
-
 	switch (action)
 	{
 	case 1:
-		camera.move(speed, side);
+		camera.move(speed, side, false);
+
 		break;
 	case 2:
-		camera.move(-speed, side);
+
+		camera.move(-speed, side, false);
+
 		break;
 	case 3:
-		camera.move(speed, forward);
+		camera.move(speed, forward, false);
 		break;
 	case 4:
-		camera.move(-speed, forward);
+		camera.move(-speed, forward, false);
 		break;
 	case 5:
 		camera.rotate_cam(normalize(float3(0, -angular, 0))*speed);
@@ -103,11 +104,24 @@ void Renderer::updateKey() {
 		camera.rotate_cam(normalize(float3(0, angular, 0))*speed);
 		break;
 	case 7:
-		camera.rotate_cam(normalize(float3(1, 0, 0))*speed);
+		camera.zoom(speed * 10);
+
+		//camera.rotate_cam(normalize(float3(1, 0, 0))*speed);
 		break;
 	case 8:
-		camera.rotate_cam(normalize(float3(1, 0, 0))*-speed);
+		camera.zoom(-speed * 10);
+
+		//camera.rotate_cam(normalize(float3(1, 0, 0))*-speed);
 		break;
+	case 9:
+		camera.zoom(speed*10);
+		break;
+	case 10:
+		camera.zoom(-speed * 10);
+		break;
+
 	}
+
+
 
 };

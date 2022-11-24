@@ -23,25 +23,28 @@ public:
 
 	}
 
-	void move(float speed, float3 dircm_dir) {
+	void move(float speed, float3 dircm_dir, bool zoom) {
 		//float3 dircm_dir = getdirection()* side;
-		camPos += speed * dircm_dir ;
+		//if(zoom ==false){ camPos += speed * dircm_dir; }
+		camPos += speed * dircm_dir;
 		topRight += speed * dircm_dir ;
 		bottomLeft += speed * dircm_dir ;
 		topLeft += speed * dircm_dir ;
 	}
 	float3 getdirection() {
-		return normalize((topRight - bottomLeft)/2 - camPos );
+		return normalize((topRight + bottomLeft)/2 - camPos );
 	}
 
+	void zoom(float speed) {
+		float3 cam_dir = getdirection();
+		topLeft += speed * cam_dir; topRight += speed * cam_dir; bottomLeft += speed * cam_dir;
+	}
 	void rotate_camAxis(mat4 TMatrix)
 	{
-
 			auto ss = topLeft - camPos;
 			topLeft =  ((float3)(TMatrix * (topLeft - camPos)) + camPos);
 			topRight =  ((float3)(TMatrix * (topRight - camPos)) + camPos);
 			bottomLeft = ((float3)(TMatrix * (bottomLeft - camPos)) + camPos);
-		
 	}
 
 	void rotate_cam(float3 rot)

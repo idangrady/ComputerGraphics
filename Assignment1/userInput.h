@@ -59,16 +59,31 @@ public:
 		}
 		if (GetAsyncKeyState(VK_UP))
 		{
-			action = 7;
+			action = 9;
 		}
 
 		if (GetAsyncKeyState(VK_DOWN))
 		{
-			action = 8;
+			action = 10;
 		}
 		return action;
 
+		if (GetAsyncKeyState(0x51))
+		{
+			// Q
+			action = 9;
+		}
+
+		if (GetAsyncKeyState(0x45))
+		{
+			// E
+			action = 10;
+		}
 	}
+
+
+
+// 0x45
 
 };
 
