@@ -1042,7 +1042,7 @@ static cl_int getPlatformID(cl_platform_id* platform)
 // ----------------------------------------------------------------------------
 Buffer::Buffer(unsigned int N, void* ptr, unsigned int t)
 {
-	if (!Kernel::clStarted) Kernel::InitCL();
+	if (!Kernel::clStarted) Kernel::InitCL();                                                       
 	type = t;
 	ownData = false;
 	int rwFlags = CL_MEM_READ_WRITE;

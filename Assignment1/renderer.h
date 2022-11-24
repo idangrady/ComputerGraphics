@@ -19,7 +19,7 @@ namespace Tmpl8
 		void MouseWheel(float y) { /* implement if you want to handle the mouse wheel */ }
 		void KeyUp(int key) { /* implement if you want to handle keys */ }
 		void KeyDown(int key) { /* implement if you want to handle keys */ }
-		void updateKey();
+		void updateKey(float deltaT);
 
 		// data members
 		int2 mousePos;
@@ -27,6 +27,8 @@ namespace Tmpl8
 		Scene scene;
 		Camera camera;
 		UserInput User;
+
+		float deltaT;
 
 	};
 
