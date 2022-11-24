@@ -8,6 +8,9 @@ void Renderer::Init()
 	// create fp32 rgb pixel buffer to render to
 	accumulator = (float4*)MALLOC64( SCRWIDTH * SCRHEIGHT * 16 );
 	memset( accumulator, 0, SCRWIDTH * SCRHEIGHT * 16 );
+	
+
+	mousePos = User.get_mouse();
 }
 
 // -----------------------------------------------------------
@@ -30,47 +33,25 @@ float3 Renderer::Trace( Ray& ray )
 // -----------------------------------------------------------
 void Renderer::Tick( float deltaTime )
 {
-	mat4 m = mat4();
+	//float speed = 1.f;
+	//
+	//float angular = PI /2*90;
 
-	float speed = 1.f;
-	
-	float angular = PI /2*90;
-	int action  =get_input();
+	////POINT cursorPoistion;
+	////GetCursorPos(&cursorPoistion);
+	////cout << cursorPoistion.x << endl;
+	////cout << cursorPoistion.y << endl;
 
-	float3 norm = normalize(camera.topLeft - camera.topRight);
-	float3 direction = camera.getdirection();
+	////Player.get_mouse();
+	//int action = -1;
+	////int action  = Player.get_input();
 
-	cout << action << endl;
-	switch (action)
-	{
-	case 1:
-		camera.move(speed, norm, float3(-1, 0,0));
-		break;
-	case 2:
-		camera.move(speed, norm, float3(1, 0, 0));
-		break;
-	case 3:
-		camera.move(speed, direction, float3(1, 1, 1));
-		break;
-	case 4:
-		camera.move(speed, direction, float3(-1, -1, -1));
-		break;
-	case 5:
-		camera.rotate_cam(float3(1,1,angular));
-		break;
-	case 6:
-		camera.rotate_cam( float3(1, 1, -angular));
-		break;
-	case 7:
-		camera.rotate_cam( float3(1, angular, 1));
-		break;
-	case 8:
-		camera.rotate_cam( float3(1, - angular, 1));
-		break;
-	}
+	//float3 norm = normalize(camera.topLeft - camera.topRight);
+	//float3 direction = camera.getdirection();
 
 
 
+	updateKey();
 	// animation
 	static float animTime = 0;
 	scene.SetTime( animTime += deltaTime * 0.002f );
@@ -96,3 +77,54 @@ void Renderer::Tick( float deltaTime )
 	float fps = 1000 / avg, rps = (SCRWIDTH * SCRHEIGHT) * fps;
 	printf( "%5.2fms (%.1fps) - %.1fMrays/s\n", avg, fps, rps / 1000000 );
 }
+
+
+void Renderer::updateKey() {
+	float3 norm = normalize(camera.topLeft - camera.topRight);
+	int action = User.get_input();
+
+
+	float angular = PI / 2 * 0.003f;
+	float speed = 0.1f;
+	float3 direction = camera.getdirection();
+	float3 forward = direction * float3(0, 0, 1);
+	float3 side = normalize(camera.topRight - camera.topLeft);
+
+
+	int2 curMousePose = User.get_mouse();
+
+	if (curMousePose != mousePos) {
+		camera.rotate_cam(normalize(float3(0, (mousePos-curMousePose ).x, 0)) * speed*0.3);
+		MouseMove(curMousePose.x, curMousePose.y);
+	}
+
+
+	switch (action)
+	{
+	case 1:
+		camera.move(speed, side);
+		break;
+	case 2:
+		camera.move(-speed, side);
+		break;
+	case 3:
+		camera.move(speed, forward);
+		break;
+	case 4:
+		camera.move(-speed, forward);
+		break;
+	case 5:
+		camera.rotate_cam(float3(1, 1, angular));
+		break;
+	case 6:
+		camera.rotate_cam(float3(1, 1, -angular));
+		break;
+	case 7:
+		camera.rotate_cam(float3(1, angular, 1));
+		break;
+	case 8:
+		camera.rotate_cam(float3(1, -angular, 1));
+		break;
+	}
+
+};
