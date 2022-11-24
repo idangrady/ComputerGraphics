@@ -33,23 +33,6 @@ float3 Renderer::Trace( Ray& ray )
 // -----------------------------------------------------------
 void Renderer::Tick( float deltaTime )
 {
-	//float speed = 1.f;
-	//
-	//float angular = PI /2*90;
-
-	////POINT cursorPoistion;
-	////GetCursorPos(&cursorPoistion);
-	////cout << cursorPoistion.x << endl;
-	////cout << cursorPoistion.y << endl;
-
-	////Player.get_mouse();
-	//int action = -1;
-	////int action  = Player.get_input();
-
-	//float3 norm = normalize(camera.topLeft - camera.topRight);
-	//float3 direction = camera.getdirection();
-
-
 
 	updateKey();
 	// animation
@@ -114,16 +97,16 @@ void Renderer::updateKey() {
 		camera.move(-speed, forward);
 		break;
 	case 5:
-		camera.rotate_cam(float3(1, 1, angular));
+		camera.rotate_cam(normalize(float3(0, -angular, 0))*speed);
 		break;
 	case 6:
-		camera.rotate_cam(float3(1, 1, -angular));
+		camera.rotate_cam(normalize(float3(0, angular, 0))*speed);
 		break;
 	case 7:
-		camera.rotate_cam(float3(1, angular, 1));
+		camera.rotate_cam(normalize(float3(1, 0, 0))*speed);
 		break;
 	case 8:
-		camera.rotate_cam(float3(1, -angular, 1));
+		camera.rotate_cam(normalize(float3(1, 0, 0))*-speed);
 		break;
 	}
 
