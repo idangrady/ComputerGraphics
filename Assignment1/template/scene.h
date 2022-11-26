@@ -24,22 +24,54 @@
 #define PLANE_Y(o,i) {if((t=-(ray.O.y+o)*ray.rD.y)<ray.t)ray.t=t,ray.objIdx=i;}
 #define PLANE_Z(o,i) {if((t=-(ray.O.z+o)*ray.rD.z)<ray.t)ray.t=t,ray.objIdx=i;}
 
+struct mat
+{
+	float3 color= (0.5, 0.5, 0.5); // color material
+	float3 Mat = NULL; // material intersection
+	float3 norm_surf; // norm of the suface
+	float3 intersectionP; // intersection point
+	int idx_inter_obj; // int intersection object
+	float t_intersect;
+
+	//void updateIntersectpoint(){}
+	
+};
+
 namespace Tmpl8 {
 
 __declspec(align(64)) class Ray
 {
 public:
 	Ray() = default;
-	Ray( float3 origin, float3 direction, float distance = 1e34f )
+	Ray(float3 origin, float3 direction, float distance = 1e34f, int depthidx = 1 )
 	{
 		O = origin, D = direction, t = distance;
 		// calculate reciprocal ray direction for triangles and AABBs
 		rD = float3( 1 / D.x, 1 / D.y, 1 / D.z );
+		depthidx = depthidx;
 	#ifdef SPEEDTRIX
 		d0 = d1 = d2 = 0;
 	#endif
 	}
 	float3 IntersectionPoint() { return O + t * D; }
+	void updateNeaest(float3 col, float4 mat, float3 Norm_surf, int objIdx) {
+		if (col == float3(0.5, 0.5, 0.5) || col == float3(1, 1, 1) || col == float3(0, 0, 0)) {
+			
+		}
+		else {
+			int s = 1;
+		}
+		dist.color = col; 
+		dist.Mat = mat; 
+		dist.norm_surf = Norm_surf; 
+		dist.idx_inter_obj = objIdx;
+	}
+	Ray reflect(float3 intersec,float3 norm) { 
+		// create a secondary array
+		// intersection = origin, norm = norm from intersected object
+		float3 dir = this->D;
+		return Ray(intersec, dir-2*(dot(dir,norm)*norm), 1e34f);
+	}
 	// ray data
 #ifndef SPEEDTRIX
 	float3 O, D, rD;
@@ -51,6 +83,12 @@ public:
 	float t = 1e34f;
 	int objIdx = -1;
 	bool inside = false; // true when in medium
+
+	struct mat dist;
+	int depthidx;
+	//float3 nearestcolor;
+	//float4 nearestmat;
+	//float3 Norm_surf;
 };
 
 // -----------------------------------------------------------
@@ -62,8 +100,10 @@ class Sphere
 {
 public:
 	Sphere() = default;
+	//Sphere() { id++; }
 	Sphere( int idx, float3 p, float r ) : 
-		pos( p ), r2( r* r ), invr( 1 / r ), objIdx( idx ) {}
+		pos(p), r2(r* r), invr(1 / r), objIdx(idx) {
+	}
 	void Intersect( Ray& ray ) const
 	{
 		float3 oc = ray.O - this->pos;
@@ -74,13 +114,19 @@ public:
 		d = sqrtf( d ), t = -b - d;
 		if (t < ray.t && t > 0)
 		{
-			ray.t = t, ray.objIdx = objIdx;
+			ray.t = t, ray.objIdx = objIdx;			
+			ray.updateNeaest(this->color, GetNormal(ray.O + t * ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
+
+
 			return;
 		}
 		t = d - b;
 		if (t < ray.t && t > 0)
 		{
 			ray.t = t, ray.objIdx = objIdx;
+			ray.updateNeaest(this->color, GetNormal(ray.O + t * ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
+
+			//ray.updateNeaest();
 			return;
 		}
 	}
@@ -95,6 +141,11 @@ public:
 	float3 pos = 0;
 	float r2 = 0, invr = 0;
 	int objIdx = -1;
+
+	float3 color = float3(0, 0, 1);
+	static int id; 
+
+
 };
 
 // -----------------------------------------------------------
@@ -106,11 +157,13 @@ class Plane
 {
 public:
 	Plane() = default;
-	Plane( int idx, float3 normal, float dist ) : N( normal ), d( dist ), objIdx( idx ) {}
+	Plane(int idx, float3 normal, float dist, float3 col = (1, 0.5, 0.5)) : N(normal), d(dist), objIdx(idx){ color = col; }
 	void Intersect( Ray& ray ) const
 	{
 		float t = -(dot( ray.O, this->N ) + this->d) / (dot( ray.D, this->N ));
 		if (t < ray.t && t > 0) ray.t = t, ray.objIdx = objIdx;
+		ray.updateNeaest(color, GetNormal(ray.O+ t*ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
+
 	}
 	float3 GetNormal( const float3 I ) const
 	{
@@ -143,6 +196,8 @@ public:
 	float3 N;
 	float d;
 	int objIdx = -1;
+	float3 color;
+
 };
 
 // -----------------------------------------------------------
@@ -158,8 +213,9 @@ public:
 	Cube( int idx, float3 pos, float3 size, mat4 transform = mat4::Identity() )
 	{
 		objIdx = idx;
-		b[0] = pos - 0.5f * size, b[1] = pos + 0.5f * size;
+		b[0] = pos - 0.5f * size, b[1] = pos + 0.5f * size; //-
 		M = transform, invM = transform.FastInvertedTransformNoScale();
+		
 	}
 	void Intersect( Ray& ray ) const
 	{
@@ -181,11 +237,15 @@ public:
 		tmin = max( tmin, tzmin ), tmax = min( tmax, tzmax );
 		if (tmin > 0)
 		{
-			if (tmin < ray.t) ray.t = tmin, ray.objIdx = objIdx;
+			if (tmin < ray.t) ray.t = tmin, ray.objIdx = objIdx; 
+			ray.updateNeaest(this->color, GetNormal(ray.O + tmin * ray.D), GetAlbedo(ray.O + tmin * ray.D), ray.objIdx);
 		}
 		else if (tmax > 0)
 		{
-			if (tmax < ray.t) ray.t = tmax, ray.objIdx = objIdx;
+			if (tmax < ray.t) ray.t = tmax, ray.objIdx = objIdx;		
+			ray.updateNeaest(this->color, GetNormal(ray.O + tmax * ray.D), GetAlbedo(ray.O + tmax * ray.D), ray.objIdx);
+
+
 		}
 	}
 	float3 GetNormal( const float3 I ) const
@@ -208,11 +268,13 @@ public:
 	}
 	float3 GetAlbedo( const float3 I ) const
 	{
-		return float3( 1, 1, 1 );
+		return float3( 1, 1,1 );
 	}
 	float3 b[2];
 	mat4 M, invM;
 	int objIdx = -1;
+
+	float3 color = float3(0, 1, 0);;
 };
 
 // -----------------------------------------------------------
@@ -228,6 +290,7 @@ public:
 		centroid = (v0 + v1 + v2) / 3.0;
 		normal = normalize(cross((v1 - v0), (v2 - v0)));
 		albedo = float3(1.f, 0.f, 0.f);
+		
 	}
 	Triangle(float3 v0, float3 v1, float3 v2, float3 color) : vertex0(v0), vertex1(v1), vertex2(v2), albedo(color) {
 		centroid = (v0 + v1 + v2) / 3.0;
@@ -252,6 +315,7 @@ public:
 		if (t > 0.0001f && t < ray.t) {
 			ray.t = t;
 			ray.objIdx = idx;
+			ray.updateNeaest(this->color, GetNormal(), GetAlbedo(), ray.objIdx);
 		}
 	}
 	float3 GetNormal() const 
@@ -261,8 +325,8 @@ public:
 	}
 	float3 GetAlbedo() const 
 	{
-		return albedo;
-		//return float3(0.93f);
+		//return albedo;
+		return float3(0.93f);
 	}
 	union {
 		struct { float3 vertex0, vertex1, vertex2; };
@@ -273,6 +337,8 @@ public:
 	float3 centroid;
 	float3 albedo;
 	float3 normal;
+
+	float3 color = float3(0, 1, 1);;
 };
 
 // -----------------------------------------------------------
@@ -286,8 +352,9 @@ public:
 	Quad( int idx, float s, mat4 transform = mat4::Identity() )
 	{
 		objIdx = idx;
-		size = s * 0.5f;
+		size =  s * 0.5f;
 		T = transform, invT = transform.FastInvertedTransformNoScale();
+		
 	}
 	void Intersect( Ray& ray ) const
 	{
@@ -299,6 +366,7 @@ public:
 			float3 I = O + t * D;
 			if (I.x > -size && I.x < size && I.z > -size && I.z < size)
 				ray.t = t, ray.objIdx = objIdx;
+			//ray.updateNeaest(this->color, GetNormal(ray.O + t * ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
 		}
 	}
 	float3 GetNormal( const float3 I ) const
@@ -329,15 +397,15 @@ public:
 	{
 		// we store all primitives in one continuous buffer
 		quad = Quad( 0, 1 );									// 0: light source
-		sphere = Sphere( 1, float3( 0 ), 0.5f );				// 1: bouncing ball
+		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball
 		sphere2 = Sphere( 2, float3( 0, 2.5f, -3.07f ), 8 );	// 2: rounded corners
-		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );			// 3: cube
-		plane[0] = Plane( 4, float3( 1, 0, 0 ), 3 );			// 4: left wall
-		plane[1] = Plane( 5, float3( -1, 0, 0 ), 2.99f );		// 5: right wall
-		plane[2] = Plane( 6, float3( 0, 1, 0 ), 1 );			// 6: floor
-		plane[3] = Plane( 7, float3( 0, -1, 0 ), 2 );			// 7: ceiling
-		plane[4] = Plane( 8, float3( 0, 0, 1 ), 3 );			// 8: front wall
-		plane[5] = Plane( 9, float3( 0, 0, -1 ), 3.99f );		// 9: back wall
+		cube = Cube(3, float3(0), float3(1.15f));				// 3: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
+		plane[0] = Plane( 4, float3( 1, 0, 0 ), 3 , float3(1,0.5,1));			// 4: left wall
+		plane[1] = Plane( 5, float3( -1, 0, 0 ), 2.99f, float3(0, 0.23, 0.23));		// 5: right wall
+		plane[2] = Plane( 6, float3( 0, 1, 0 ), 1, float3(1, 1, 0.23));			// 6: floor
+		plane[3] = Plane( 7, float3( 0, -1, 0 ), 2, float3(0.23, 0.23, 1));			// 7: ceiling
+		plane[4] = Plane( 8, float3( 0, 0, 1 ), 3, float3(0, 0.23, 1));			// 8: front wall
+		plane[5] = Plane( 9, float3( 0, 0, -1 ), 3.99f, float3(0.23, 0, 1));		// 9: back wall
 		triangle = Triangle(float3(-0.9f, 0, -1), float3(0.2f, 0, -1), float3(0, 1.0f, 0)); // 10: triangle
 		SetTime( 0 );
 		// Note: once we have triangle support we should get rid of the class
@@ -363,13 +431,24 @@ public:
 	float3 GetLightPos() const
 	{
 		// light point position is the middle of the swinging quad
-		float3 corner1 = TransformPosition( float3( -0.5f, 0, -0.5f ), quad.T );
-		float3 corner2 = TransformPosition( float3( 0.5f, 0, 0.5f ), quad.T );
-		return (corner1 + corner2) * 0.5f - float3( 0, 0.01f, 0 );
+		float3 corner1 = TransformPosition( float3( -0.5f, 0, -0.5f ), quad.T  );
+		float3 corner2 = TransformPosition( float3( 0.5f, 0, 0.5f ) , quad.T );
+		return (corner1 + corner2) * 0.5f - float3( 0, 0.01f, 1 );
 	}
+
 	float3 GetLightColor() const
 	{
-		return float3( 24, 24, 22 );
+		return float3(24, 24, 22); //return float3( 24, 24, 22 );
+	}
+	float directIllumination(float3 intersection, float3 norm) {
+
+		for (int i = numLightSouces; i > 0; i--) {
+			float3 normhitPoint = normalize(intersection);
+
+			float3 dir_light = normalize(GetLightPos());// ; // get the distance between the camera and 
+			float intencity = maxFloat(dot(normhitPoint, dir_light), 0.0f);
+			return intencity; 
+		}
 	}
 	void FindNearest( Ray& ray ) const
 	{
@@ -403,6 +482,7 @@ public:
 	{
 		// we get the normal after finding the nearest intersection:
 		// this way we prevent calculating it multiple times.
+
 		if (objIdx == -1) return float3( 0 ); // or perhaps we should just crash
 		float3 N;
 		if (objIdx == 0) N = quad.GetNormal(I);
@@ -449,6 +529,7 @@ public:
 	Sphere sphere2;
 	Cube cube;
 	Plane plane[6];
+	int numLightSouces=1; // should be initilize better in the future
 };
 
 }
