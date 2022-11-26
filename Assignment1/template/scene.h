@@ -27,14 +27,10 @@
 struct mat
 {
 	float3 color= (0.5, 0.5, 0.5); // color material
-	float3 Mat = NULL; // material intersection
+	float3 material = NULL; // material 
 	float3 norm_surf; // norm of the suface
-	float3 intersectionP; // intersection point
+	float3 albedo; // 
 	int idx_inter_obj; // int intersection object
-	float t_intersect;
-
-	//void updateIntersectpoint(){}
-	
 };
 
 namespace Tmpl8 {
@@ -54,16 +50,11 @@ public:
 	#endif
 	}
 	float3 IntersectionPoint() { return O + t * D; }
-	void updateNeaest(float3 col, float4 mat, float3 Norm_surf, int objIdx) {
-		if (col == float3(0.5, 0.5, 0.5) || col == float3(1, 1, 1) || col == float3(0, 0, 0)) {
-			
-		}
-		else {
-			int s = 1;
-		}
+	void updateNeaest(float3 col,float3 material, float4 normal, float3 alb, int objIdx) {
 		dist.color = col; 
-		dist.Mat = mat; 
-		dist.norm_surf = Norm_surf; 
+		dist.material = material;
+		dist.norm_surf = normal;
+		dist.albedo = alb;
 		dist.idx_inter_obj = objIdx;
 	}
 	Ray reflect(float3 intersec,float3 norm, int idx) { 
@@ -104,7 +95,6 @@ class Sphere
 {
 public:
 	Sphere() = default;
-	//Sphere() { id++; }
 	Sphere( int idx, float3 p, float r ) : 
 		pos(p), r2(r* r), invr(1 / r), objIdx(idx) {
 	}
@@ -119,18 +109,14 @@ public:
 		if (t < ray.t && t > 0)
 		{
 			ray.t = t, ray.objIdx = objIdx;			
-			ray.updateNeaest(this->color, GetNormal(ray.O + t * ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
-
-
+			ray.updateNeaest(this->color, this->material, GetNormal(ray.O + t * ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
 			return;
 		}
 		t = d - b;
 		if (t < ray.t && t > 0)
 		{
 			ray.t = t, ray.objIdx = objIdx;
-			ray.updateNeaest(this->color, GetNormal(ray.O + t * ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
-
-			//ray.updateNeaest();
+			ray.updateNeaest(this->color, this->material, GetNormal(ray.O + t * ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
 			return;
 		}
 	}
@@ -147,6 +133,7 @@ public:
 	int objIdx = -1;
 
 	float3 color = float3(0, 0, 1);
+	float3 material; 
 	static int id; 
 
 
@@ -166,7 +153,7 @@ public:
 	{
 		float t = -(dot( ray.O, this->N ) + this->d) / (dot( ray.D, this->N ));
 		if (t < ray.t && t > 0) ray.t = t, ray.objIdx = objIdx;
-		ray.updateNeaest(color, GetNormal(ray.O+ t*ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
+		ray.updateNeaest(color, material,GetNormal(ray.O+ t*ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
 
 	}
 	float3 GetNormal( const float3 I ) const
@@ -201,6 +188,8 @@ public:
 	float d;
 	int objIdx = -1;
 	float3 color;
+	float3 material;
+
 
 };
 
@@ -242,12 +231,12 @@ public:
 		if (tmin > 0)
 		{
 			if (tmin < ray.t) ray.t = tmin, ray.objIdx = objIdx; 
-			ray.updateNeaest(this->color, GetNormal(ray.O + tmin * ray.D), GetAlbedo(ray.O + tmin * ray.D), ray.objIdx);
+			ray.updateNeaest(this->color, this->material, GetNormal(ray.O + tmin * ray.D), GetAlbedo(ray.O + tmin * ray.D), ray.objIdx);
 		}
 		else if (tmax > 0)
 		{
 			if (tmax < ray.t) ray.t = tmax, ray.objIdx = objIdx;		
-			ray.updateNeaest(this->color, GetNormal(ray.O + tmax * ray.D), GetAlbedo(ray.O + tmax * ray.D), ray.objIdx);
+			ray.updateNeaest(this->color, this->material, GetNormal(ray.O + tmax * ray.D), GetAlbedo(ray.O + tmax * ray.D), ray.objIdx);
 
 
 		}
@@ -278,6 +267,7 @@ public:
 	mat4 M, invM;
 	int objIdx = -1;
 
+	float3 material= float3(0,0,0);
 	float3 color = float3(0, 1, 0);;
 };
 
@@ -319,7 +309,7 @@ public:
 		if (t > 0.0001f && t < ray.t) {
 			ray.t = t;
 			ray.objIdx = idx;
-			ray.updateNeaest(this->color, GetNormal(), GetAlbedo(), ray.objIdx);
+			ray.updateNeaest(this->color, this->material, GetNormal(), GetAlbedo(), ray.objIdx);
 		}
 	}
 	float3 GetNormal() const 
@@ -342,7 +332,8 @@ public:
 	float3 albedo;
 	float3 normal;
 
-	float3 color = float3(0, 1, 1);;
+	float3 color = float3(0, 1, 1);
+	float3 material = float3(0, 0, 0);
 };
 
 // -----------------------------------------------------------
@@ -402,7 +393,7 @@ public:
 		// we store all primitives in one continuous buffer
 		quad = Quad( 0, 1 );									// 0: light source
 		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball
-		sphere2 = Sphere( 2, float3( 0, 2.5f, -3.07f ), 8 );	// 2: rounded corners
+		//sphere2 = Sphere( 2, float3( 0, 2.5f, -3.07f ), 8 );	// 2: rounded corners
 		cube = Cube(3, float3(0), float3(1.15f));				// 3: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
 		plane[0] = Plane( 4, float3( 1, 0, 0 ), 3 , float3(1,0.5,1));			// 4: left wall
 		plane[1] = Plane( 5, float3( -1, 0, 0 ), 2.99f, float3(0, 0.23, 0.23));		// 5: right wall
@@ -446,11 +437,11 @@ public:
 	}
 	float3 directIllumination(float3 intersection, float3 norm, float3 refelected) {
 		float3 color = (0, 0, 0);
-		float3 normhitPoint = intersection;
+		float3 normhitPoint = normalize(intersection);
 
 		for (int i = numLightSouces; i > 0; i--) { // would change once we add more lights
 			float3 dir_light = normalize(GetLightPos() - intersection);
-			color+= GetLightColor()* maxFloat(dot( dir_light, refelected), 0.0f);
+			color =  normalize(GetLightColor())* maxFloat(dot( dir_light, refelected), 0.0f); //
 		}
 		return color;
 	}
