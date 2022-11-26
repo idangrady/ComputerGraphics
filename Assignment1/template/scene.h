@@ -26,8 +26,8 @@
 
 struct mat
 {
-	float3 color= (0.5, 0.5, 0.5); // color material
-	float3 material = NULL; // material 
+	float3 color= (0.9, 0.9, 0.9); // color material
+	float material = 1; // material 
 	float3 norm_surf; // norm of the suface
 	float3 albedo; // 
 	int idx_inter_obj; // int intersection object
@@ -50,7 +50,7 @@ public:
 	#endif
 	}
 	float3 IntersectionPoint() { return O + t * D; }
-	void updateNeaest(float3 col,float3 material, float4 normal, float3 alb, int objIdx) {
+	void updateNeaest(float3 col,float material, float4 normal, float3 alb, int objIdx) {
 		dist.color = col; 
 		dist.material = material;
 		dist.norm_surf = normal;
@@ -80,7 +80,7 @@ public:
 	bool inside = false; // true when in medium
 
 	struct mat dist;
-	int depthidx;
+	int depthidx=0;
 	//float3 nearestcolor;
 	//float4 nearestmat;
 	//float3 Norm_surf;
@@ -133,7 +133,7 @@ public:
 	int objIdx = -1;
 
 	float3 color = float3(0, 0, 1);
-	float3 material; 
+	float material=0.5; 
 	static int id; 
 
 
@@ -188,7 +188,7 @@ public:
 	float d;
 	int objIdx = -1;
 	float3 color;
-	float3 material;
+	float material = 0.5;
 
 
 };
@@ -267,7 +267,7 @@ public:
 	mat4 M, invM;
 	int objIdx = -1;
 
-	float3 material= float3(0,0,0);
+	float material= 0.1;
 	float3 color = float3(0, 1, 0);;
 };
 
@@ -308,8 +308,9 @@ public:
 		const float t = f * dot(edge2, q);
 		if (t > 0.0001f && t < ray.t) {
 			ray.t = t;
+			
 			ray.objIdx = idx;
-			ray.updateNeaest(this->color, this->material, GetNormal(), GetAlbedo(), ray.objIdx);
+			ray.updateNeaest(color, material, GetNormal(), GetAlbedo(), ray.objIdx);
 		}
 	}
 	float3 GetNormal() const 
@@ -332,8 +333,8 @@ public:
 	float3 albedo;
 	float3 normal;
 
-	float3 color = float3(0, 1, 1);
-	float3 material = float3(0, 0, 0);
+	float3 color = float3(0.5, 0.5, 0.5);
+	float material = 0.5;
 };
 
 // -----------------------------------------------------------
@@ -361,7 +362,6 @@ public:
 			float3 I = O + t * D;
 			if (I.x > -size && I.x < size && I.z > -size && I.z < size)
 				ray.t = t, ray.objIdx = objIdx;
-			//ray.updateNeaest(this->color, GetNormal(ray.O + t * ray.D), GetAlbedo(ray.O + t * ray.D), ray.objIdx);
 		}
 	}
 	float3 GetNormal( const float3 I ) const
@@ -392,7 +392,7 @@ public:
 	{
 		// we store all primitives in one continuous buffer
 		quad = Quad( 0, 1 );									// 0: light source
-		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball
+		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball   0.5f
 		//sphere2 = Sphere( 2, float3( 0, 2.5f, -3.07f ), 8 );	// 2: rounded corners
 		cube = Cube(3, float3(0), float3(1.15f));				// 3: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
 		plane[0] = Plane( 4, float3( 1, 0, 0 ), 3 , float3(1,0.5,1));			// 4: left wall
@@ -441,7 +441,17 @@ public:
 
 		for (int i = numLightSouces; i > 0; i--) { // would change once we add more lights
 			float3 dir_light = normalize(GetLightPos() - intersection);
-			color += normalize(GetLightColor())* maxFloat(dot( dir_light, norm), 0.0f); //
+			float dot_p = dot(dir_light, norm);
+
+			// -----------------------------------------------------------
+			// regular
+			// -----------------------------------------------------------
+			color += normalize(GetLightColor())* maxFloat( dot_p, 0.0f); //
+		
+			// -----------------------------------------------------------
+			// For specular highlights
+			// color += normalize(GetLightColor())* maxFloat(dot_p* dot_p, 0.0f); //
+			// -----------------------------------------------------------
 		}
 		
 		return color;
