@@ -25,27 +25,18 @@ float3 Renderer::Trace( Ray& ray )
 	float3 I = ray.O + ray.t * ray.D;
 	float3 N = scene.GetNormal( ray.objIdx, I, ray.D );
 
-	float directIllum = scene.directIllumination(I, N);
-	float spec = scene.GetReflectivity(ray.objIdx, I);
-	float direct = 1 - spec;
+	float3 directIllum = scene.directIllumination(I, N, ray.reflectfunc(I, N));
+	float reflectivety  = scene.GetReflectivity(ray.objIdx, I);
+	float direct = 1 - reflectivety;
+
+	float s = 0.0f;
+	float d = 1 - s;
 
 	mat describtionRay = ray.dist;
-	
 	float3 albedo = scene.GetAlbedo( ray.objIdx, I );//attenuation
 
-	float3 col_ =  describtionRay.color *directIllum;
-	return col_;
-	//return   (describtionRay.color + directIllum);
-	//if (describtionRay.Mat == NULL) {
-	//	return float3(0.5, 0.5, 0.5); 
-	//}
-	//else { return   (
-	//	describtionRay.color+ directIllum); }
-	//if (ray.depthidx < 3) {
-	//	float3 lightdir = normalize(scene.GetLightPos() - I);
-	//	return col_ * (Trace(Ray(I, lightdir)));
-	//}
-	//return col_;
+	Ray secondary_ray = ray.reflect(I, N, ray.depthidx);
+	return directIllum;//*(s * Trace(secondary_ray) +  d*directIllum);
 
 	/* visualize normal */// return (N + 1) * 0.5f;//* directIllum;
 	/*return*/  //col_;//(N + 1) * directIllum;
