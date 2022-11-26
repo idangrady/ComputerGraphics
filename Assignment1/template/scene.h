@@ -435,14 +435,15 @@ public:
 	{
 		return float3(24, 24, 22); //return float3( 24, 24, 22 );
 	}
-	float3 directIllumination(float3 intersection, float3 norm, float3 refelected) {
+	float3 directIllumination(float3 intersection, float3 norm) {
 		float3 color = (0, 0, 0);
 		float3 normhitPoint = normalize(intersection);
 
 		for (int i = numLightSouces; i > 0; i--) { // would change once we add more lights
 			float3 dir_light = normalize(GetLightPos() - intersection);
-			color =  normalize(GetLightColor())* maxFloat(dot( dir_light, refelected), 0.0f); //
+			color += normalize(GetLightColor())* maxFloat(dot( dir_light, norm), 0.0f); //
 		}
+		
 		return color;
 	}
 	void FindNearest( Ray& ray ) const

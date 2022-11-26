@@ -26,7 +26,7 @@ float3 Renderer::Trace( Ray& ray )
 	float3 I = ray.O + ray.t * ray.D;
 	float3 N = scene.GetNormal( ray.objIdx, I, ray.D );
 
-	float3 directIllum = scene.directIllumination(I, N, ray.reflectfunc(I, N));
+	float3 directIllum = scene.directIllumination(I, N);
 	float reflectivety  = scene.GetReflectivity(ray.objIdx, I);
 	
 	float direct = 1 - reflectivety;
@@ -36,8 +36,13 @@ float3 Renderer::Trace( Ray& ray )
 	float3 albedo = scene.GetAlbedo( ray.objIdx, I );//attenuation
 
 	//Ray secondary_ray = ray.reflect(I, N, ray.depthidx);
+	if (scene.IsOccluded(Ray(I+ float3(0.02,0.02,0.02)*N, normalize(scene.GetLightPos() - I))))
+	{
+		return float3(0);
+	}
+	else{ return directIllum * ray.dist.color; }
 	
-	return directIllum * ray.dist.color;//*(s * Trace(secondary_ray) +  d*directIllum);
+;//*(s * Trace(secondary_ray) +  d*directIllum);
 
 	/* visualize normal */// return (N + 1) * 0.5f;//* directIllum;
 	/*return*/  //col_;//(N + 1) * directIllum;
