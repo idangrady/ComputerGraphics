@@ -777,7 +777,7 @@ inline int4 max( const int4& a, const int4& b ) { return make_int4( max( a.x, b.
 inline uint2 max( const uint2& a, const uint2& b ) { return make_uint2( max( a.x, b.x ), max( a.y, b.y ) ); }
 inline uint3 max( const uint3& a, const uint3& b ) { return make_uint3( max( a.x, b.x ), max( a.y, b.y ), max( a.z, b.z ) ); }
 inline uint4 max( const uint4& a, const uint4& b ) { return make_uint4( max( a.x, b.x ), max( a.y, b.y ), max( a.z, b.z ), max( a.w, b.w ) ); }
-
+inline float maxFloat(const float a, float b) { if (a > b) return a; else return  b; }
 inline float lerp( float a, float b, float t ) { return a + t * (b - a); }
 inline float2 lerp( const float2& a, const float2& b, float t ) { return a + t * (b - a); }
 inline float3 lerp( const float3& a, const float3& b, float t ) { return a + t * (b - a); }
