@@ -66,11 +66,15 @@ public:
 		dist.norm_surf = Norm_surf; 
 		dist.idx_inter_obj = objIdx;
 	}
-	Ray reflect(float3 intersec,float3 norm) { 
+	Ray reflect(float3 intersec,float3 norm, int idx) { 
 		// create a secondary array
 		// intersection = origin, norm = norm from intersected object
 		float3 dir = this->D;
-		return Ray(intersec, dir-2*(dot(dir,norm)*norm), 1e34f);
+		return Ray(intersec, normalize(dir-2*(dot(dir,norm)*norm)), 1e34f, idx+1);
+	}
+	float3 reflectfunc(float3 intersec, float3 norm) {
+		float3 dir = this->D;
+		return  normalize(dir - 2 * (dot(dir, norm) * norm));
 	}
 	// ray data
 #ifndef SPEEDTRIX
@@ -440,15 +444,15 @@ public:
 	{
 		return float3(24, 24, 22); //return float3( 24, 24, 22 );
 	}
-	float directIllumination(float3 intersection, float3 norm) {
+	float3 directIllumination(float3 intersection, float3 norm, float3 refelected) {
+		float3 color = (0, 0, 0);
+		float3 normhitPoint = intersection;
 
-		for (int i = numLightSouces; i > 0; i--) {
-			float3 normhitPoint = normalize(intersection);
-
-			float3 dir_light = normalize(GetLightPos());// ; // get the distance between the camera and 
-			float intencity = maxFloat(dot(normhitPoint, dir_light), 0.0f);
-			return intencity; 
+		for (int i = numLightSouces; i > 0; i--) { // would change once we add more lights
+			float3 dir_light = normalize(GetLightPos() - intersection);
+			color+= GetLightColor()* maxFloat(dot( dir_light, refelected), 0.0f);
 		}
+		return color;
 	}
 	void FindNearest( Ray& ray ) const
 	{

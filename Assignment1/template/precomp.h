@@ -712,6 +712,7 @@ inline void operator*=( uint2& a, uint b ) { a.x *= b;	a.y *= b; }
 inline float3 operator*( const float3& a, const float3& b ) { return make_float3( a.x * b.x, a.y * b.y, a.z * b.z ); }
 inline void operator*=( float3& a, const float3& b ) { a.x *= b.x;	a.y *= b.y;	a.z *= b.z; }
 inline float3 operator*( const float3& a, float b ) { return make_float3( a.x * b, a.y * b, a.z * b ); }
+//inline float3 operator*(const float a, const float3 b) { float3 r;  r.x = a * b.x; r.y = a * b.y;  r.z = a * b.z;}
 inline float3 operator*( float b, const float3& a ) { return make_float3( b * a.x, b * a.y, b * a.z ); }
 inline void operator*=( float3& a, float b ) { a.x *= b;	a.y *= b;	a.z *= b; }
 inline int3 operator*( const int3& a, const int3& b ) { return make_int3( a.x * b.x, a.y * b.y, a.z * b.z ); }
