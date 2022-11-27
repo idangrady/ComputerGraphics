@@ -23,26 +23,32 @@ float3 Renderer::Trace( Ray& ray )
 
 
 	scene.FindNearest( ray );
-
 	if (ray.objIdx == -1) return float3(0, 0, 0.2); // or a fancy sky color
-	if (ray.depthidx > max_depth) return scene.getMaterial(ray.objIdx).albedo; 
 
-
+	float3 color(0, 0, 0);
 	float3 I = ray.O + ray.t * ray.D;
-	float3 N = scene.GetNormal( ray.objIdx, I, ray.D );
+	float3 N = scene.GetNormal(ray.objIdx, I, ray.D);
 	Material& m = scene.getMaterial(ray.objIdx);
 
-	float s =  m.specular;
+	float s = m.specular;
 	float d = m.diffuse; //or: float d = 1 - s; 
 
 	//Ray secondary_ray = ray.reflect(I, N, ray.depthidx);
-	float3 color(0, 0, 0);
-	float3 dirtolight = normalize(scene.GetLightPos() - I);
-	if (scene.IsOccluded(Ray(I+ (0.0002 *N), dirtolight)))
-	{
-		return float3(0);
+	float3 offset_O = I + (0.0002 * N);
+	float3 distance_to_light = scene.lights[0].position - offset_O;
+	float3 dirtolight = normalize(distance_to_light);
+	Ray occlusion_ray = Ray(offset_O, dirtolight, length(distance_to_light));
+	//color += scene.ambient * m.albedo;
+	if (ray.depthidx > max_depth) {
+		// at maximum depth we try to return the last object hit's color, or just darkness for "eternal reflection"
+		if (scene.IsOccluded(occlusion_ray))
+		{
+			return color;
+		}
+		if (d > 0.0) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
+		return color;
 	}
-	else {
+	if (!scene.IsOccluded(occlusion_ray)) {
 		// -----------------------------------------------------------
 		// less efficient
 		// -----------------------------------------------------------
@@ -52,11 +58,11 @@ float3 Renderer::Trace( Ray& ray )
 		// more efficient
 		// -----------------------------------------------------------
 
-		if (d > 0.0) color += d * scene.directIllumination(I, N, m.albedo); // If diffuse
-		if (s > 0.0) {
-			color += s * Trace(ray.reflect(I, N, ray.depthidx + 1));
-		}// If specular
-
+		if (d > 0.0) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
+	}
+	if (s > 0.0) {
+		// Only if we hit front of the material
+		color += s * Trace(ray.Reflect(I, N, ray.depthidx)); // If specular
 	}
 	return color;
 
