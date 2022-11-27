@@ -54,7 +54,7 @@ float3 Renderer::Trace( Ray& ray )
 
 		if (d > 0.0) color += d * scene.directIllumination(I, N, m.albedo); // If diffuse
 		if (s > 0.0) {
-			//color += s * Trace(ray.reflect(I, N, ray.depthidx + 1));
+			color += s * Trace(ray.reflect(I, N, ray.depthidx + 1));
 		}// If specular
 
 	}

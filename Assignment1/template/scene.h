@@ -40,6 +40,7 @@ struct Light {
 struct Material
 {
 	Material() = default;
+	Material(float3 a, float d, float s, float dif, Medium m) : albedo(a), diffuse(d), specular(s), diffractive(dif), mat_medium(m) {}
 	float3 albedo = (0.9, 0.9, 0.9); // color material
 	float diffuse = 1; // material 
 	float specular = 0;
@@ -410,15 +411,15 @@ public:
 		refractiveIndices[Medium::Glass][Medium::Air] = 1.0 / 1.52;
 		refractiveIndices[Medium::Air][Medium::Glass] = 1.52;
 		// Precalc some materials
-		Material* mirror = new Material{ float3(0, 0.2, 0), 0.0, 1.0, 0.0, Medium::Undefined };
+		Material* mirror = new Material(float3(0, 0.2, 0), 0.0, 1.0, 0.0, Medium::Undefined);
 		materialMap["Mirror"] = mirror;
 
 
 		// we store all primitives in one continuous buffer
-		//quad = Quad( 0, 1 );									// 0: light source
+		quad = Quad( 0, 1 );									// 0: light source
 		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball   0.5f
 		//sphere2 = Sphere( 2, float3( 0, 2.5f, -3.07f ), 8 );	// 2: rounded corners
-		//cube = Cube(3, float3(0), float3(1.15f));				// 3: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
+		cube = Cube(3, float3(0), float3(1.15f));				// 3: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
 		//plane[0] = Plane( 4, float3( 1, 0, 0 ), 3 , float3(1,0.5,1));			// 4: left wall
 		//plane[1] = Plane( 5, float3( -1, 0, 0 ), 2.99f, float3(0, 0.23, 0.23));		// 5: right wall
 		//plane[2] = Plane( 6, float3( 0, 1, 0 ), 1, float3(1, 1, 0.23));			// 6: floor
@@ -431,22 +432,22 @@ public:
 		Triangle* wall_l1 = new Triangle(float3(-3, 3, -3), float3(-3, 3, -3), float3(-3, -3, -3), 2);
 		Triangle* wall_r0 = new Triangle(float3(3, -3, 3), float3(3, 3, -3), float3(3, -3, -3), 3);
 		Triangle* wall_r1 = new Triangle(float3(3, 3, -3), float3(3, -3, -3), float3(3, 3, -3), 4);
-		cout << "Triangle 0: " << triangle->objIdx << endl;
+		//cout << "Triangle 0: " << triangle->objIdx << endl;
 		trianglePool.push_back(triangle);
-		cout << "Triangle wall L 0: " << wall_l0->objIdx << endl;
+		//cout << "Triangle wall L 0: " << wall_l0->objIdx << endl;
 		trianglePool.push_back(wall_l0);
-		cout << "Triangle wall L 1: " << wall_l1->objIdx << endl;
+		//cout << "Triangle wall L 1: " << wall_l1->objIdx << endl;
 		trianglePool.push_back(wall_l1);
-		cout << "Triangle wall R 0: " << wall_r0->objIdx << endl;
+		//cout << "Triangle wall R 0: " << wall_r0->objIdx << endl;
 		trianglePool.push_back(wall_r0);
-		cout << "Triangle wall R 0: " << wall_r1->objIdx << endl;
+		//cout << "Triangle wall R 0: " << wall_r1->objIdx << endl;
 		trianglePool.push_back(wall_r1);
-		cout << "Sanity checks: " << endl;
-		cout << "10 == " << trianglePool[0]->objIdx << endl;
-		cout << "11 == " << trianglePool[1]->objIdx << endl;
-		cout << "12 == " << trianglePool[2]->objIdx << endl;
-		cout << "13 == " << trianglePool[3]->objIdx << endl;
-		cout << "14 == " << trianglePool[4]->objIdx << endl;
+		//cout << "Sanity checks: " << endl;
+		//cout << "10 == " << trianglePool[0]->objIdx << endl;
+		//cout << "11 == " << trianglePool[1]->objIdx << endl;
+		//cout << "12 == " << trianglePool[2]->objIdx << endl;
+		//cout << "13 == " << trianglePool[3]->objIdx << endl;
+		//cout << "14 == " << trianglePool[4]->objIdx << endl;
 		SetTime( 0 );
 		// Note: once we have triangle support we should get rid of the class
 		// hierarchy: virtuals reduce performance somewhat.
@@ -459,11 +460,11 @@ public:
 		// light source animation: swing
 		mat4 M1base = mat4::Translate( float3( 0, 2.6f, 2 ) );
 		mat4 M1 = M1base * mat4::RotateZ( sinf( animTime * 0.6f ) * 0.1f ) * mat4::Translate( float3( 0, -0.9, 0 ) );
-		//quad.T = M1, quad.invT = M1.FastInvertedTransformNoScale();
+		quad.T = M1, quad.invT = M1.FastInvertedTransformNoScale();
 		// cube animation: spin
 		mat4 M2base = mat4::RotateX( PI / 4 ) * mat4::RotateZ( PI / 4 );
 		mat4 M2 = mat4::Translate( float3( 1.4f, 0, 2 ) ) * mat4::RotateY( animTime * 0.5f ) * M2base;
-		//cube.M = M2, cube.invM = M2.FastInvertedTransformNoScale();
+		cube.M = M2, cube.invM = M2.FastInvertedTransformNoScale();
 		// sphere animation: bounce
 		float tm = 1 - sqrf( fmodf( animTime, 2.0f ) - 1 );
 		sphere.pos = float3( -1.4f, -0.5f + tm, 2 );
@@ -471,19 +472,19 @@ public:
 	float3 GetLightPos() const
 	{
 		// light point position is the middle of the swinging quad
-		//float3 corner1 = TransformPosition( float3( -0.5f, 0, -0.5f ), quad.T  );
-		//float3 corner2 = TransformPosition( float3( 0.5f, 0, 0.5f ) , quad.T );
-		//return (corner1 + corner2) * 0.5f - float3( 0, 0.01f, 1 );
-		return lights[0].position;
+		float3 corner1 = TransformPosition( float3( -0.5f, 0, -0.5f ), quad.T  );
+		float3 corner2 = TransformPosition( float3( 0.5f, 0, 0.5f ) , quad.T );
+		return (corner1 + corner2) * 0.5f - float3( 0, 0.01f, 1 );
+		//return lights[0].position;
 	}
 
 	Material getMaterial(int objIdx) const
 	{
 		if (objIdx == -1) throw exception("There's no material for nothing"); // or perhaps we should just crash
-		//if (objIdx == 0) return quad.material;
+		if (objIdx == 0) return quad.material;
 		else if (objIdx == 1) return sphere.material;
 		//else if (objIdx == 2) return sphere2.material;
-		//else if (objIdx == 3) return cube.material;
+		else if (objIdx == 3) return cube.material;
 		else if (objIdx >= 10) return trianglePool[objIdx - 10]->material;
 		throw exception("ID not known");
 	}
@@ -520,23 +521,23 @@ public:
 		//if (ray.D.x < 0) PLANE_X( 3, 4 ) else PLANE_X( -2.99f, 5 );
 		//if (ray.D.y < 0) PLANE_Y( 1, 6 ) else PLANE_Y( -2, 7 );
 		//if (ray.D.z < 0) PLANE_Z( 3, 8 ) else PLANE_Z( -3.99f, 9 );
-		//quad.Intersect( ray );
+		quad.Intersect( ray );
 		sphere.Intersect( ray );
 		//sphere2.Intersect( ray );
-		//cube.Intersect( ray );
+		cube.Intersect( ray );
 		for (int i = 0; i < (int)trianglePool.size(); i++) {
 			trianglePool[i]->Intersect(ray);
 		}
-		//if (ray.objIdx != -1) cout << "Intersection with object id: " << ray.objIdx << endl;
+		//if (ray.objIdx >= 10) cout << "Triangle hit: " << ray.objIdx << endl;
 	}
 	bool IsOccluded( Ray& ray ) const
 	{
 		float rayLength = ray.t;
 		// skip planes: it is not possible for the walls to occlude anything
-		//quad.Intersect( ray );
+		quad.Intersect( ray );
 		sphere.Intersect( ray );
 		//sphere2.Intersect( ray );
-		//cube.Intersect( ray );
+		cube.Intersect( ray );
 		for (int i = 0; i < (int)trianglePool.size(); i++) {
 			trianglePool[i]->Intersect(ray);
 		}
@@ -553,10 +554,10 @@ public:
 
 		if (objIdx == -1) return float3( 0 ); // or perhaps we should just crash
 		float3 N;
-		//if (objIdx == 0) N = quad.GetNormal(I);
-		if (objIdx == 1) N = sphere.GetNormal(I);
+		if (objIdx == 0) N = quad.GetNormal(I);
+		else if (objIdx == 1) N = sphere.GetNormal(I);
 		//else if (objIdx == 2) N = sphere2.GetNormal(I);
-		//else if (objIdx == 3) N = cube.GetNormal(I);
+		else if (objIdx == 3) N = cube.GetNormal(I);
 		else if (objIdx >= 10) N = trianglePool[objIdx - 10]->GetNormal();
 		//else 
 		//{
@@ -569,11 +570,11 @@ public:
 	}
 	__declspec(align(64)) // start a new cacheline here
 	float animTime = 0;
-	//Quad quad;
+	Quad quad;
 	Light lights[1];
 	Sphere sphere;
 	//Sphere sphere2;
-	//Cube cube;
+	Cube cube;
 	//Plane plane[6];
 	static inline vector<Triangle*> trianglePool;
 	static inline map<string, Material*> materialMap;
