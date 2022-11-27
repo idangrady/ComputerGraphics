@@ -24,24 +24,21 @@ float3 Renderer::Trace( Ray& ray )
 
 	scene.FindNearest( ray );
 
-	if (ray.objIdx == -1 || ray.depthidx > max_depth) 
-		return 0; // or a fancy sky color
+	if (ray.objIdx == -1) return float3(0, 0, 0); // or a fancy sky color
+	if (ray.depthidx > max_depth) return scene.getMaterial(ray.objIdx).albedo; 
+
 
 	float3 I = ray.O + ray.t * ray.D;
 	float3 N = scene.GetNormal( ray.objIdx, I, ray.D );
+	Material& m = scene.getMaterial(ray.objIdx);
 
-	float3 directIllum = scene.directIllumination(I, N);
-
-	float reflectivety  = scene.GetReflectivity(ray.objIdx, I);
-	float direct = 1 - reflectivety;
-	float s =  ray.dist.material;
-	float d = 1 - s;
-
-	float3 albedo = scene.GetAlbedo( ray.objIdx, I );//attenuation
+	float s =  m.specular;
+	float d = m.diffuse; //or: float d = 1 - s; 
 
 	//Ray secondary_ray = ray.reflect(I, N, ray.depthidx);
+	float3 color(0, 0, 0);
 	float3 dirtolight = normalize(scene.GetLightPos() - I);
-	if (scene.IsOccluded(Ray(I+ float3(0.02,0.02,0.02)*N, normalize(scene.GetLightPos() - I))))
+	if (scene.IsOccluded(Ray(I+ (0.0000002 *N), dirtolight)))
 	{
 		return float3(0);
 	}
@@ -55,12 +52,11 @@ float3 Renderer::Trace( Ray& ray )
 		// more efficient
 		// -----------------------------------------------------------
 
-		if (ray.dist.material >0.3) {
-			return ray.dist.color * directIllum ;
-		}
-		else { // only the cube should be activated
-			return  ray.dist.color * Trace(ray.reflect(I, N, ray.depthidx + 1));
-		}
+		if (d > 0.0) color += d * scene.directIllumination(I, N, m.albedo); // If diffuse
+		if (s > 0.0) {
+			//color += s * Trace(ray.reflect(I, N, ray.depthidx + 1));
+		}// If specular
+
 	}
 
 
