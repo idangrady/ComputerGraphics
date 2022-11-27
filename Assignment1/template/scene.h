@@ -48,12 +48,6 @@ struct Material
 	Medium mat_medium{ Medium::Undefined };
 };
 
-struct Intersection {
-	Material material;
-	float3 normal;
-	int obj_id;
-};
-
 namespace Tmpl8 {
 
 __declspec(align(64)) class Ray
