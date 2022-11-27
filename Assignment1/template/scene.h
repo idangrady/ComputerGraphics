@@ -75,7 +75,7 @@ public:
 		// create a secondary ray
 		// intersection = origin, norm = norm from intersected object
 		float3 dir = this->D;
-		Ray ray = Ray(intersec + (0.0000002 * norm), dir - 2 * (dot(dir, norm) * norm), 1e34f, idx + 1);
+		Ray ray = Ray(intersec + (0.0002 * norm), dir - 2 * (dot(dir, norm) * norm), 1e34f, idx + 1);
 		ray.objIdx = this->objIdx;
 		ray.inside = this->inside;
 		return ray;
@@ -527,7 +527,7 @@ public:
 		for (int i = 0; i < (int)trianglePool.size(); i++) {
 			trianglePool[i]->Intersect(ray);
 		}
-		if (ray.objIdx != -1) cout << "Intersection with object id: " << ray.objIdx << endl;
+		//if (ray.objIdx != -1) cout << "Intersection with object id: " << ray.objIdx << endl;
 	}
 	bool IsOccluded( Ray& ray ) const
 	{
