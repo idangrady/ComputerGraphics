@@ -56,7 +56,6 @@ float3 Renderer::Trace( Ray& ray)
 		float T;
 		float traveled = ray.t;
 		float3 interim_color = float3(0, 0, 0);
-		float3 absorption = float3(1) - m.albedo;
 		float cos_theta_i = dot(N, -ray.D);
 		{ // Inner scope cuz lots of terms
 
@@ -72,7 +71,8 @@ float3 Renderer::Trace( Ray& ray)
 			//cout << "T: " << T << endl;
 		}
 		if (R > 0.0f && ray.depthidx <= max_depth) {
-			interim_color += R * Trace(ray.Reflect(I, N, ray.depthidx));
+			// Cheap hack if we have total internal reflection: just don't reflect anymore. Is this legal?
+			if(!hit_back) interim_color += R * Trace(ray.Reflect(I, N, ray.depthidx));
 		}
 		if (T > 0.0f) {
 			float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
@@ -82,9 +82,9 @@ float3 Renderer::Trace( Ray& ray)
 			}
 		}
 		if (hit_back) { // If we go from glass to air, we have to absorb some of the light we found (because we traverse in reverse order!)
-			interim_color.x *= exp(-absorption.x * traveled);
-			interim_color.y *= exp(-absorption.y * traveled);
-			interim_color.z *= exp(-absorption.z * traveled);
+			interim_color.x *= exp(-m.absorption.x * traveled);
+			interim_color.y *= exp(-m.absorption.y * traveled);
+			interim_color.z *= exp(-m.absorption.z * traveled);
 		}
 		color += interim_color;
 	}

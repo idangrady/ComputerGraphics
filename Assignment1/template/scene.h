@@ -40,8 +40,9 @@ struct Light {
 struct Material
 {
 	Material() = default;
-	Material(float3 c, float a = 1, Medium m = Medium::Undefined) : albedo(c), specularity(a), mat_medium(m) {}
-	float3 albedo = (0.9, 0.9, 0.9); // color material
+	Material(float3 a, float s = 1, Medium m = Medium::Undefined) : albedo(a), specularity(s), mat_medium(m) {}
+	float3 albedo = (0.9f, 0.9f, 0.9f); // color material
+	float3 absorption = (0, 0, 0);
 	float specularity;
 	Medium mat_medium{ Medium::Undefined };
 };
@@ -409,6 +410,7 @@ public:
 		sphere2 = Sphere( 2, float3( 0, -1.5f, -1.05f ), 0.5f );	// 2: glass ball
 		sphere2.material.albedo = float3(0.2, 0.8, 0.2);
 		sphere2.material.mat_medium = Medium::Glass;
+		sphere2.material.absorption = float3(0.2f, 2.0f, 4.0f);
 		cube = Cube(3, float3(0), float3(1.15f));				// 3: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
 		//plane[0] = Plane( 4, float3( 1, 0, 0 ), 3 , float3(1,0.5,1));			// 4: left wall
 		//plane[1] = Plane( 5, float3( -1, 0, 0 ), 2.99f, float3(0, 0.23, 0.23));		// 5: right wall
