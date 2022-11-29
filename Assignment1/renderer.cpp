@@ -64,7 +64,7 @@ float3 Renderer::Trace( Ray& ray)
 			float refr_sin = (refr * sin_theta_i);
 			float cos_theta_t = sqrtf(1.0f - (refr_sin * refr_sin));
 			float first_term = (n1 * cos_theta_i - n2 * cos_theta_t) / (n1 * cos_theta_i + n2 * cos_theta_t);
-			float second_term = (n1 * cos_theta_t - n2 * cos_theta_i) / (n1 * cos_theta_t - n2 * cos_theta_i);
+			float second_term = (n1 * cos_theta_t - n2 * cos_theta_i) / (n1 * cos_theta_t + n2 * cos_theta_i);
 			R = 0.5f * ((first_term * first_term) + (second_term * second_term));
 			T = 1.0f - R;
 			// Double check for correctness later
@@ -77,15 +77,15 @@ float3 Renderer::Trace( Ray& ray)
 		if (T > 0.0f) {
 			float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
 			if (k >= 0) {
-				float3 t_dir = (refr * ray.D) + (refr * cos_theta_i - sqrtf(k));
+				float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
 				interim_color += T * Trace(Ray(I + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx));
 			}
 		}
-		//if (hit_back) { // If we go from glass to air, we have to absorb some of the light we found (because we traverse in reverse order!)
-		//	interim_color.x *= exp(-absorption.x * traveled);
-		//	interim_color.y *= exp(-absorption.y * traveled);
-		//	interim_color.z *= exp(-absorption.z * traveled);
-		//}
+		if (hit_back) { // If we go from glass to air, we have to absorb some of the light we found (because we traverse in reverse order!)
+			interim_color.x *= exp(-absorption.x * traveled);
+			interim_color.y *= exp(-absorption.y * traveled);
+			interim_color.z *= exp(-absorption.z * traveled);
+		}
 		color += interim_color;
 	}
 	else {
