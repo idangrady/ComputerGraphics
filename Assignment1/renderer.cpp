@@ -2,6 +2,8 @@
 // -----------------------------------------------------------
 // Initialize the renderer
 // -----------------------------------------------------------
+
+int i = 1;
 void Renderer::Init()
 {
 	// create fp32 rgb pixel buffer to render to
@@ -18,14 +20,56 @@ void Renderer::Init()
 // -----------------------------------------------------------
 float3 Renderer::Trace( Ray& ray )
 {
+
+
 	scene.FindNearest( ray );
-	if (ray.objIdx == -1) return 0; // or a fancy sky color
+	if (ray.objIdx == -1) return float3(0, 0, 0.2); // or a fancy sky color
+
+	float3 color(0, 0, 0);
 	float3 I = ray.O + ray.t * ray.D;
-	float3 N = scene.GetNormal( ray.objIdx, I, ray.D );
-	float3 albedo = scene.GetAlbedo( ray.objIdx, I );
-	/* visualize normal */ return (N + 1) * 0.5f;
-	/* visualize distance */ // return 0.1f * float3( ray.t, ray.t, ray.t );
-	/* visualize albedo */ // return albedo;
+	float3 N = scene.GetNormal(ray.objIdx, I, ray.D);
+	Material& m = scene.getMaterial(ray.objIdx);
+
+	float s = m.specular;
+	float d = m.diffuse; //or: float d = 1 - s; 
+
+	//Ray secondary_ray = ray.reflect(I, N, ray.depthidx);
+	float3 offset_O = I + (0.0002 * N);
+	float3 distance_to_light = scene.lights[0].position - offset_O;
+	float3 dirtolight = normalize(distance_to_light);
+	Ray occlusion_ray = Ray(offset_O, dirtolight, length(distance_to_light));
+	//color += scene.ambient * m.albedo;
+	if (ray.depthidx > max_depth) {
+		// at maximum depth we try to return the last object hit's color, or just darkness for "eternal reflection"
+		if (scene.IsOccluded(occlusion_ray))
+		{
+			return color;
+		}
+		if (d > 0.0) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
+		return color;
+	}
+	if (!scene.IsOccluded(occlusion_ray)) {
+		// -----------------------------------------------------------
+		// less efficient
+		// -----------------------------------------------------------
+		//return  ray.dist.color * (d * directIllum + s * Trace(ray.reflect(I, N, ray.t + 1)));
+
+		// -----------------------------------------------------------
+		// more efficient
+		// -----------------------------------------------------------
+
+		if (d > 0.0) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
+	}
+	if (s > 0.0) {
+		// Only if we hit front of the material
+		color += s * Trace(ray.Reflect(I, N, ray.depthidx)); // If specular
+	}
+	return color;
+
+	/* visualize normal */// return (N + 1) * 0.5f;//* directIllum;
+	/*return*/  //col_;//(N + 1) * directIllum;
+	/* visualize distance */   //return 0.1f * float3( ray.t, ray.t, ray.t );
+	/* visualize albedo */  //return albedo ;
 }
 
 // -----------------------------------------------------------
@@ -46,15 +90,21 @@ void Renderer::Tick( float deltaTime )
 	#pragma omp parallel for schedule(dynamic)
 	for (int y = 0; y < SCRHEIGHT; y++)
 	{
+		if (y != 0) {
+			int s = 0;
+		}
 		// trace a primary ray for each pixel on the line
-		for (int x = 0; x < SCRWIDTH; x++)
+		for (int x = 0; x < SCRWIDTH; x++) {
 			accumulator[x + y * SCRWIDTH] =
-				float4( Trace( camera.GetPrimaryRay( x, y ) ), 0 );
+				float4(Trace(camera.GetPrimaryRay(x, y)), 0); // Note for myself to remember: x+y*SCRWIDTH simply make sure we have a consecative num seq.
+			
+		}
+
 		// translate accumulator contents to rgb32 pixels
 		for (int dest = y * SCRWIDTH, x = 0; x < SCRWIDTH; x++)
-			screen->pixels[dest + x] = 
-				RGBF32_to_RGB8( &accumulator[x + y * SCRWIDTH] );
-	}
+			screen->pixels[dest + x] =
+			RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
+	} 
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
