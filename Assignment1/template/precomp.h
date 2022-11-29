@@ -23,6 +23,7 @@
 // if your CPU does not support this (unlikely), include the appropriate header instead.
 // see: https://stackoverflow.com/a/11228864/2844473
 #include <immintrin.h>
+#include "common.h"
 
 // clang-format off
 
@@ -855,6 +856,10 @@ inline float4 fabs( const float4& v ) { return make_float4( fabs( v.x ), fabs( v
 inline int2 abs( const int2& v ) { return make_int2( abs( v.x ), abs( v.y ) ); }
 inline int3 abs( const int3& v ) { return make_int3( abs( v.x ), abs( v.y ), abs( v.z ) ); }
 inline int4 abs( const int4& v ) { return make_int4( abs( v.x ), abs( v.y ), abs( v.z ), abs( v.w ) ); }
+
+inline double degrees_to_radians(double degrees) {
+	return degrees * PI / 180.0;
+}
 
 inline float3 reflect( const float3& i, const float3& n ) { return i - 2.0f * n * dot( n, i ); }
 

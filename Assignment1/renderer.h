@@ -23,6 +23,7 @@ namespace Tmpl8
 		int2 mousePos;
 		float4* accumulator;
 		float3 mov;
+		float3 fovc; // interactive FOV
 		Scene scene;
 		Camera camera;
 

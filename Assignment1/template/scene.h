@@ -87,6 +87,7 @@ public:
 	int objIdx = -1;
 	bool inside = false; // true when in medium
 	int depthidx;
+
 	//float3 nearestcolor;
 	//float4 nearestmat;
 	//float3 Norm_surf;
