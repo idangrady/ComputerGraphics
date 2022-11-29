@@ -389,8 +389,8 @@ public:
 		refractiveIndex[Medium::Air] = 1.0;
 		refractiveIndex[Medium::Glass] = 1.52;
 		for (int i = 0; i < refractiveIndex.size(); i++) {
+			Medium a = static_cast<Medium>(i);
 			for (int j = 0; j < refractiveIndex.size(); j++) {
-				Medium a = static_cast<Medium>(i);
 				Medium b = static_cast<Medium>(j);
 				if (j == i) refractiveTransmissions[a][b] = 1.0;
 				else refractiveTransmissions[a][b] = refractiveIndex[a] / refractiveIndex[b];
@@ -407,7 +407,7 @@ public:
 		lightSphere.material.albedo = (24, 24, 24);
 		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball   0.5f
 		sphere2 = Sphere( 2, float3( 0, -1.5f, -1.05f ), 0.5f );	// 2: glass ball
-		sphere2.material.albedo == float3(0.2, 0.8, 0.2);
+		sphere2.material.albedo = float3(0.2, 0.8, 0.2);
 		sphere2.material.mat_medium = Medium::Glass;
 		cube = Cube(3, float3(0), float3(1.15f));				// 3: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
 		//plane[0] = Plane( 4, float3( 1, 0, 0 ), 3 , float3(1,0.5,1));			// 4: left wall
