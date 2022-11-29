@@ -25,6 +25,8 @@ namespace Tmpl8
 		float3 mov;
 		Scene scene;
 		Camera camera;
+
+		int max_depth = 20;
 	};
 
 } // namespace Tmpl8

@@ -712,6 +712,7 @@ inline void operator*=( uint2& a, uint b ) { a.x *= b;	a.y *= b; }
 inline float3 operator*( const float3& a, const float3& b ) { return make_float3( a.x * b.x, a.y * b.y, a.z * b.z ); }
 inline void operator*=( float3& a, const float3& b ) { a.x *= b.x;	a.y *= b.y;	a.z *= b.z; }
 inline float3 operator*( const float3& a, float b ) { return make_float3( a.x * b, a.y * b, a.z * b ); }
+//inline float3 operator*(const float a, const float3 b) { float3 r;  r.x = a * b.x; r.y = a * b.y;  r.z = a * b.z;}
 inline float3 operator*( float b, const float3& a ) { return make_float3( b * a.x, b * a.y, b * a.z ); }
 inline void operator*=( float3& a, float b ) { a.x *= b;	a.y *= b;	a.z *= b; }
 inline int3 operator*( const int3& a, const int3& b ) { return make_int3( a.x * b.x, a.y * b.y, a.z * b.z ); }
@@ -777,7 +778,8 @@ inline int4 max( const int4& a, const int4& b ) { return make_int4( max( a.x, b.
 inline uint2 max( const uint2& a, const uint2& b ) { return make_uint2( max( a.x, b.x ), max( a.y, b.y ) ); }
 inline uint3 max( const uint3& a, const uint3& b ) { return make_uint3( max( a.x, b.x ), max( a.y, b.y ), max( a.z, b.z ) ); }
 inline uint4 max( const uint4& a, const uint4& b ) { return make_uint4( max( a.x, b.x ), max( a.y, b.y ), max( a.z, b.z ), max( a.w, b.w ) ); }
-
+inline float maxFloat(const float a, float b) { if (a > b) return a; else return  b; }
+inline float minFloat(const float a, float b) { if (a < b) return a; else return b;}
 inline float lerp( float a, float b, float t ) { return a + t * (b - a); }
 inline float2 lerp( const float2& a, const float2& b, float t ) { return a + t * (b - a); }
 inline float3 lerp( const float3& a, const float3& b, float t ) { return a + t * (b - a); }
