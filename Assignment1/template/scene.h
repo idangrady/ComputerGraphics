@@ -31,20 +31,18 @@ enum class Medium {
 
 struct Light {
 	Light() = default;
-	Light(float3 p, float i) : position(p), intensity(i) {}
+	Light(float3 p, float i) : position(p), lumen(i) {}
 	float3 position;
 	float3 color;
-	float intensity;
+	float lumen;
 };
 
 struct Material
 {
 	Material() = default;
-	Material(float3 a, float d, float s, float dif, Medium m) : albedo(a), diffuse(d), specular(s), diffractive(dif), mat_medium(m) {}
+	Material(float3 c, float a = 1, Medium m = Medium::Undefined) : albedo(c), specularity(a), mat_medium(m) {}
 	float3 albedo = (0.9, 0.9, 0.9); // color material
-	float diffuse = 1; // material 
-	float specular = 0;
-	float diffractive = 0;
+	float specularity;
 	Medium mat_medium{ Medium::Undefined };
 };
 
@@ -70,7 +68,8 @@ public:
 		// create a secondary ray
 		// intersection = origin, norm = norm from intersected object
 		float3 dir = this->D;
-		Ray ray = Ray(intersec + (0.0002 * norm), dir - 2 * (dot(dir, norm) * norm), 1e34f, idx + 1);
+		float3 reflected = dir - 2 * (dot(dir, norm) * norm);
+		Ray ray = Ray(intersec + (0.0002 * reflected), reflected, 1e34f, idx + 1);
 		//ray.objIdx = this->objIdx;
 		//ray.inside = this->inside;
 		return ray;
@@ -85,8 +84,8 @@ public:
 #endif
 	float t = 1e34f;
 	int objIdx = -1;
-	bool inside = false; // true when in medium
 	int depthidx;
+	bool inside = false;
 	//float3 nearestcolor;
 	//float4 nearestmat;
 	//float3 Norm_surf;
@@ -143,9 +142,7 @@ public:
 	static int id; 
 	Material material = {
 		float3(0, 0, 1), //albedo
-		1.0, //diffuse
-		0.0, //specular
-		0.0, //diffraction
+		0.0, //specularity
 		Medium::Undefined, //medium
 	};
 };
@@ -266,12 +263,9 @@ public:
 	int objIdx = -1;
 	Material material = {
 		float3(0, 1, 0), //albedo
-		0.8, //diffuse
-		0.2, //specular
-		0.0, //diffraction
+		0.2, //specularity
 		Medium::Undefined, //medium
 	};
-	float3 color = float3(0, 1, 0);;
 };
 
 // -----------------------------------------------------------
@@ -327,9 +321,7 @@ public:
 	float3 normal;
 	Material material = {
 		float3(1, 0, 0), //albedo
-		1.0, //diffuse
-		0.0, //specular
-		0.0, //diffraction
+		0.0, //specularity
 		Medium::Undefined, //medium
 	};
 };
@@ -372,9 +364,7 @@ public:
 	}
 	Material material = {
 		float3(1, 1, 0), //albedo
-		1.0, //diffuse
-		0.0, //specular
-		0.0, //diffraction
+		0.0, //specularity
 		Medium::Undefined, //medium
 	};
 	float size;
@@ -395,11 +385,19 @@ public:
 	Scene()
 	{
 		lights[0] = Light(float3(0, 1.5, 0.5), 24);
-		// Precalc indices
-		refractiveIndices[Medium::Glass][Medium::Air] = 1.0 / 1.52;
-		refractiveIndices[Medium::Air][Medium::Glass] = 1.52;
+		// Precalc refractive mappings
+		refractiveIndex[Medium::Air] = 1.0;
+		refractiveIndex[Medium::Glass] = 1.52;
+		for (int i = 0; i < refractiveIndex.size(); i++) {
+			for (int j = 0; j < refractiveIndex.size(); j++) {
+				Medium a = static_cast<Medium>(i);
+				Medium b = static_cast<Medium>(j);
+				if (j == i) refractiveTransmissions[a][b] = 1.0;
+				else refractiveTransmissions[a][b] = refractiveIndex[a] / refractiveIndex[b];
+			}
+		}
 		// Precalc some materials
-		Material mirror = Material(float3(0, 0.2, 0), 0.0, 1.0, 0.0, Medium::Undefined);
+		Material mirror = Material(float3(0, 1.0, 0), 1.0, Medium::Undefined);
 		materialMap["Mirror"] = mirror;
 
 
@@ -408,7 +406,9 @@ public:
 		lightSphere = Sphere(0, lights[0].position, 0.05);
 		lightSphere.material.albedo = (24, 24, 24);
 		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball   0.5f
-		//sphere2 = Sphere( 2, float3( 0, 2.5f, -3.07f ), 8 );	// 2: rounded corners
+		sphere2 = Sphere( 2, float3( 0, -1.5f, -1.05f ), 0.5f );	// 2: glass ball
+		sphere2.material.albedo == float3(0.2, 0.8, 0.2);
+		sphere2.material.mat_medium = Medium::Glass;
 		cube = Cube(3, float3(0), float3(1.15f));				// 3: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
 		//plane[0] = Plane( 4, float3( 1, 0, 0 ), 3 , float3(1,0.5,1));			// 4: left wall
 		//plane[1] = Plane( 5, float3( -1, 0, 0 ), 2.99f, float3(0, 0.23, 0.23));		// 5: right wall
@@ -506,7 +506,7 @@ public:
 		//if (objIdx == 0) return quad.material;
 		if (objIdx == 0) return lightSphere.material;
 		else if (objIdx == 1) return sphere.material;
-		//else if (objIdx == 2) return sphere2.material;
+		else if (objIdx == 2) return sphere2.material;
 		else if (objIdx == 3) return cube.material;
 		else if (objIdx >= 10) return trianglePool[objIdx - 10]->material;
 		throw exception("ID not known");
@@ -522,7 +522,7 @@ public:
 		for (int i = 0; i < numLightSouces; i++) { // would change once we add more lights
 			float3 dir_light = normalize(lights[i].position - intersection);
 			float dot_p = dot(dir_light, norm);
-			float intensity = lights[i].intensity / pow(length(lights[i].position - intersection), 2);
+			float intensity = lights[i].lumen / pow(length(lights[i].position - intersection), 2);
 
 			// -----------------------------------------------------------
 			// regular
@@ -547,7 +547,7 @@ public:
 		//quad.Intersect( ray );
 		lightSphere.Intersect(ray);
 		sphere.Intersect( ray );
-		//sphere2.Intersect( ray );
+		sphere2.Intersect( ray );
 		cube.Intersect( ray );
 		for (int i = 0; i < (int)trianglePool.size(); i++) {
 			trianglePool[i]->Intersect(ray);
@@ -560,7 +560,7 @@ public:
 		// skip planes: it is not possible for the walls to occlude anything
 		//quad.Intersect( ray );
 		sphere.Intersect( ray );
-		//sphere2.Intersect( ray );
+		sphere2.Intersect( ray );
 		cube.Intersect( ray );
 		for (int i = 0; i < (int)trianglePool.size(); i++) {
 			trianglePool[i]->Intersect(ray);
@@ -571,7 +571,7 @@ public:
 		// - we store objIdx and t when we just need a yes/no
 		// - we don't 'early out' after the first occlusion
 	}
-	float3 GetNormal( int objIdx, float3 I, float3 wo ) const
+	float3 GetNormal( int objIdx, float3 I, float3 wo, bool& hit_back) const
 	{
 		// we get the normal after finding the nearest intersection:
 		// this way we prevent calculating it multiple times.
@@ -581,7 +581,7 @@ public:
 		//if (objIdx == 0) N = quad.GetNormal(I);
 		if (objIdx == 0) N = lightSphere.GetNormal(I);
 		if (objIdx == 1) N = sphere.GetNormal(I);
-		//else if (objIdx == 2) N = sphere2.GetNormal(I);
+		else if (objIdx == 2) N = sphere2.GetNormal(I);
 		else if (objIdx == 3) N = cube.GetNormal(I);
 		else if (objIdx >= 10) N = trianglePool[objIdx - 10]->GetNormal();
 		//else 
@@ -590,7 +590,7 @@ public:
 		//	N = float3( 0 );
 		//	N[(objIdx - 4) / 2] = 1 - 2 * (float)(objIdx & 1);
 		//}
-		if (dot( N, wo ) > 0) N = -N; // hit backside / inside
+		if (dot(N, wo) > 0) { N = -N; hit_back = true; } // hit backside / inside
 		return N;
 	}
 	__declspec(align(64)) // start a new cacheline here
@@ -600,12 +600,14 @@ public:
 	Light lights[1];
 	Sphere sphere;
 	Sphere lightSphere;
-	//Sphere sphere2;
+	Sphere sphere2;
 	Cube cube;
 	//Plane plane[6];
 	static inline vector<Triangle*> trianglePool;
+	static inline vector<Sphere*> spherePool;
 	static inline map<string, Material> materialMap;
-	map<Medium, map<Medium, float>> refractiveIndices;
+	map<Medium, float> refractiveIndex;
+	map<Medium, map<Medium, float>> refractiveTransmissions;
 	int numLightSouces=1; // should be initilize better in the future
 };
 
