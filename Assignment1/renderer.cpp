@@ -7,9 +7,9 @@ int i = 1;
 void Renderer::Init()
 {
 	// create fp32 rgb pixel buffer to render to
-	accumulator = (float4*)MALLOC64( SCRWIDTH * SCRHEIGHT * 16 );
-	memset( accumulator, 0, SCRWIDTH * SCRHEIGHT * 16 );
-	
+	accumulator = (float4*)MALLOC64(SCRWIDTH * SCRHEIGHT * 16);
+	memset(accumulator, 0, SCRWIDTH * SCRHEIGHT * 16);
+
 	POINT cursorPosition;
 	GetCursorPos(&cursorPosition);
 	mousePos = int2(cursorPosition.x, cursorPosition.y);
@@ -18,11 +18,11 @@ void Renderer::Init()
 // -----------------------------------------------------------
 // Evaluate light transport
 // -----------------------------------------------------------
-float3 Renderer::Trace( Ray& ray )
+float3 Renderer::Trace(Ray& ray)
 {
 
 
-	scene.FindNearest( ray );
+	scene.FindNearest(ray);
 	if (ray.objIdx == -1) return float3(0, 0, 0.2); // or a fancy sky color
 
 	float3 color(0, 0, 0);
@@ -75,19 +75,20 @@ float3 Renderer::Trace( Ray& ray )
 // -----------------------------------------------------------
 // Main application tick function - Executed once per frame
 // -----------------------------------------------------------
-void Renderer::Tick( float deltaTime )
+void Renderer::Tick(float deltaTime)
 {
 	// animation
 	static float animTime = 0;
-	scene.SetTime( animTime += deltaTime * 0.002f );
+	scene.SetTime(animTime += deltaTime * 0.002f);
 
 	//Camera
 	const float speed = 0.2f;
 	camera.move(mov, speed);
+	camera.fovUpdate(fovc,speed);
 	// pixel loop
 	Timer t;
 	// lines are executed as OpenMP parallel tasks (disabled in DEBUG)
-	#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic)
 	for (int y = 0; y < SCRHEIGHT; y++)
 	{
 		if (y != 0) {
@@ -97,14 +98,14 @@ void Renderer::Tick( float deltaTime )
 		for (int x = 0; x < SCRWIDTH; x++) {
 			accumulator[x + y * SCRWIDTH] =
 				float4(Trace(camera.GetPrimaryRay(x, y)), 0); // Note for myself to remember: x+y*SCRWIDTH simply make sure we have a consecative num seq.
-			
+
 		}
 
 		// translate accumulator contents to rgb32 pixels
 		for (int dest = y * SCRWIDTH, x = 0; x < SCRWIDTH; x++)
 			screen->pixels[dest + x] =
 			RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
-	} 
+	}
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
@@ -129,6 +130,9 @@ void Tmpl8::Renderer::KeyUp(int key)
 	if (key == 0x44) mov -= float3(1, 0, 0);; //D
 	if (key == VK_SPACE) mov -= float3(0, 1, 0); // Space bar
 	if (key == 0x43) mov -= float3(0, -1, 0); // C
+	if (key == 0x45) fovc -= float3(-1,0,0); // E
+	if (key == 0x51) fovc -= float3(1, 0, 0); // Q
+
 }
 
 void Tmpl8::Renderer::KeyDown(int key)
@@ -139,4 +143,8 @@ void Tmpl8::Renderer::KeyDown(int key)
 	if (key == 0x44) mov += float3(1, 0, 0);; //D
 	if (key == VK_SPACE) mov += float3(0, 1, 0); // Space bar
 	if (key == 0x43) mov += float3(0, -1, 0); // C
+	if (key == 0x45) fovc += float3(-1, 0, 0);// E
+	if (key == 0x51) fovc += float3(1, 0, 0);// Q
+
+
 }

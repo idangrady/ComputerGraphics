@@ -13,13 +13,22 @@ class Camera
 public:
 	Camera()
 	{
+
+		double vfov = 45;
+		float theta = degrees_to_radians(vfov);
+		float h = tan(theta / 2);
+		float viewHeight = 2.0 * h;
+		float viewWidth = aspect * viewHeight;
+
+
+
 		// setup a basic view frustum
 		camPos_start = float3(0, 0, -2);
 		startDir = float3(0, 0, 1);
 		camPos = camPos_start;
-		topLeft_start = float3( -aspect, 1, 0 );
-		topRight_start = float3( aspect, 1, 0 );
-		bottomLeft_start = float3( -aspect, -1, 0 );
+		topLeft_start = float3( -viewWidth, 1, 0 );
+		topRight_start = float3(viewWidth, 1, 0 ); // changed
+		bottomLeft_start = float3( -viewWidth, -1, 0 );
 		topLeft = topLeft_start;
 		topRight = topRight_start;
 		bottomLeft = bottomLeft_start;
@@ -52,10 +61,15 @@ public:
 		topRight += move * speed;
 		bottomLeft += move * speed;
 	}
+	void fovUpdate(float3 dir,  float speed) { // interactive FOV
+		topLeft -= dir * speed;
+		topRight += dir * speed;
+		bottomLeft -= dir * speed;
+	};
 
 	float3 getdirection() {
-		return normalize((topRight + bottomLeft)/2 - camPos );
-	}
+		return normalize((topRight + bottomLeft)/2 - camPos );}
+
 
 	//void zoom(float speed) {
 	//	float3 cam_dir = getdirection();
@@ -71,6 +85,8 @@ public:
 		const float3 P = topLeft + u * (topRight - topLeft) + v * (bottomLeft - topLeft);
 		return Ray( camPos, normalize( P - camPos ) );
 	}
+
+
 	float aspect = (float)SCRWIDTH / (float)SCRHEIGHT;
 	float ZoomLevel = 1.0f;
 	float3 camPos, camPos_start, startDir;
@@ -80,15 +96,11 @@ public:
 	float3 topLeft, topRight, bottomLeft;
 
 	
-
-
-	//mat4 mat = mat4();
-
-	//auto theta = degrees_to_radians(vfov);
-
-	//auto h = tan(theta / 2);
-	//auto viewport_height = 2.0 * h;
-	//auto viewport_width = aspect * viewport_height;
+	float vfov;
+	float theta;
+	float h;
+	float viewport_height;
+	float viewport_width;
 
 };
 
