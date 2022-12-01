@@ -1,5 +1,7 @@
 #pragma once
 #include <map>
+#include <random>
+
 // -----------------------------------------------------------
 // scene.h
 // Simple test scene for ray tracing experiments. Goals:
@@ -23,6 +25,9 @@
 #define PLANE_Y(o,i) {if((t=-(ray.O.y+o)*ray.rD.y)<ray.t)ray.t=t,ray.objIdx=i;}
 #define PLANE_Z(o,i) {if((t=-(ray.O.z+o)*ray.rD.z)<ray.t)ray.t=t,ray.objIdx=i;}
 
+
+
+
 enum class Medium {
 	Undefined = -1,
 	Air = 0,
@@ -31,10 +36,12 @@ enum class Medium {
 
 struct Light {
 	Light() = default;
-	Light(float3 p, float i) : position(p), intensity(i) {}
+	Light(int idx,float3 p, float i) :objIdx(idx), position(p), intensity(i) {}
 	float3 position;
 	float3 color;
 	float intensity;
+	int objIdx;
+
 };
 
 struct Material
@@ -66,14 +73,13 @@ public:
 	#endif
 	}
 	float3 IntersectionPoint() { return O + t * D; }
-	Ray Reflect(float3 intersec,float3 norm, int idx) { 
+
+	Ray Reflect(float3 I,float3 N) { 
 		// create a secondary ray
 		// intersection = origin, norm = norm from intersected object
-		float3 dir = this->D;
-		Ray ray = Ray(intersec + (0.0002 * norm), dir - 2 * (dot(dir, norm) * norm), 1e34f, idx + 1);
-		//ray.objIdx = this->objIdx;
-		//ray.inside = this->inside;
-		return ray;
+		float3 dir = normalize(this->D);
+		return Ray(I + (0.0002f * N), dir - 2 * (dot(dir, N) * N), 1e34f, depthidx + 1);
+		
 	}
 	// ray data
 #ifndef SPEEDTRIX
@@ -86,11 +92,8 @@ public:
 	float t = 1e34f;
 	int objIdx = -1;
 	bool inside = false; // true when in medium
-	int depthidx;
+	int depthidx=0;
 
-	//float3 nearestcolor;
-	//float4 nearestmat;
-	//float3 Norm_surf;
 };
 
 // -----------------------------------------------------------
@@ -316,7 +319,6 @@ public:
 	float3 GetNormal() const 
 	{
 		return normal;
-		//return float3(0, 0, -1);
 	}
 	union {
 		struct { float3 vertex0, vertex1, vertex2; };
@@ -395,7 +397,7 @@ class Scene
 public:
 	Scene()
 	{
-		lights[0] = Light(float3(0, 1.5, 0.5), 24);
+		lights[0] = Light(0,float3(0, 1.5, 0.5), 24);
 		// Precalc indices
 		refractiveIndices[Medium::Glass][Medium::Air] = 1.0 / 1.52;
 		refractiveIndices[Medium::Air][Medium::Glass] = 1.52;
@@ -405,18 +407,10 @@ public:
 
 
 		// we store all primitives in one continuous buffer
-		//quad = Quad( 0, 1 );									// 0: light source
-		lightSphere = Sphere(0, lights[0].position, 0.05);
+		lightSphere = Sphere(2, lights[0].position, 0.05);
 		lightSphere.material.albedo = (24, 24, 24);
 		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball   0.5f
-		//sphere2 = Sphere( 2, float3( 0, 2.5f, -3.07f ), 8 );	// 2: rounded corners
 		cube = Cube(3, float3(0), float3(1.15f));				// 3: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
-		//plane[0] = Plane( 4, float3( 1, 0, 0 ), 3 , float3(1,0.5,1));			// 4: left wall
-		//plane[1] = Plane( 5, float3( -1, 0, 0 ), 2.99f, float3(0, 0.23, 0.23));		// 5: right wall
-		//plane[2] = Plane( 6, float3( 0, 1, 0 ), 1, float3(1, 1, 0.23));			// 6: floor
-		//plane[3] = Plane( 7, float3( 0, -1, 0 ), 2, float3(0.23, 0.23, 1));			// 7: ceiling
-		//plane[4] = Plane( 8, float3( 0, 0, 1 ), 3, float3(0, 0.23, 1));			// 8: front wall
-		//plane[5] = Plane( 9, float3( 0, 0, -1 ), 3.99f, float3(0.23, 0, 1));		// 9: back wall
 		
 		Triangle* triangle = new Triangle(float3(-0.9f, 0, -1), float3(0.2f, 0, -1), float3(0, 1.0f, -0.5), 0); // 10: triangle
 		// Left wall
@@ -447,15 +441,10 @@ public:
 		Triangle* floor_1 = new Triangle(float3(-3, -3, -3), float3(-3, -3, 3), float3(3, -3, -3), 12);
 		floor_0->material.albedo = float3(0.2, 1, 0);
 		floor_1->material.albedo = float3(0.2, 1, 0);
-		//cout << "Triangle 0: " << triangle->objIdx << endl;
 		trianglePool.push_back(triangle);
-		//cout << "Triangle wall L 0: " << wall_l0->objIdx << endl;
 		trianglePool.push_back(wall_l0);
-		//cout << "Triangle wall L 1: " << wall_l1->objIdx << endl;
 		trianglePool.push_back(wall_l1);
-		//cout << "Triangle wall R 0: " << wall_r0->objIdx << endl;
 		trianglePool.push_back(wall_r0);
-		//cout << "Triangle wall R 0: " << wall_r1->objIdx << endl;
 		trianglePool.push_back(wall_r1);
 		trianglePool.push_back(wall_r_backdrop0);
 		trianglePool.push_back(wall_r_backdrop1);
@@ -465,12 +454,6 @@ public:
 		trianglePool.push_back(wall_b1);
 		trianglePool.push_back(floor_0);
 		trianglePool.push_back(floor_1);
-		//cout << "Sanity checks: " << endl;
-		//cout << "10 == " << trianglePool[0]->objIdx << endl;
-		//cout << "11 == " << trianglePool[1]->objIdx << endl;
-		//cout << "12 == " << trianglePool[2]->objIdx << endl;
-		//cout << "13 == " << trianglePool[3]->objIdx << endl;
-		//cout << "14 == " << trianglePool[4]->objIdx << endl;
 		SetTime( 0 );
 		// Note: once we have triangle support we should get rid of the class
 		// hierarchy: virtuals reduce performance somewhat.
@@ -505,7 +488,7 @@ public:
 	{
 		if (objIdx == -1) throw exception("There's no material for nothing"); // or perhaps we should just crash
 		//if (objIdx == 0) return quad.material;
-		if (objIdx == 0) return lightSphere.material;
+		if (objIdx == 2) return lightSphere.material; //Jax:  chancged idx to 2
 		else if (objIdx == 1) return sphere.material;
 		//else if (objIdx == 2) return sphere2.material;
 		else if (objIdx == 3) return cube.material;
@@ -515,12 +498,39 @@ public:
 
 	float3 GetLightColor() const
 	{
-		return lights[0].color; //return float3( 24, 24, 22 );
+		return lights[0].color; 
 	}
+
+	float3 GetDiffuseRefelectDir(float3 N) {
+	// steps: create a random cube around the hit point
+	// find a random point in the cube 
+	// check if greater than one -> if so, recalculate. 
+	// if not, normlize. 
+	// check if dot(Point, Normal) <0 -> p = -p
+	// create a cobe -1 1 around the point
+		bool gen = false;
+		float3 random_vec;
+		while (!gen) {
+			float x = (2*RandomFloat())-1;
+			float y = (2 * RandomFloat()) - 1;
+			float z = (2 * RandomFloat()) - 1;
+
+			random_vec = float3( x,  y,  z);
+			if (length(random_vec) < 1) {
+				random_vec = normalize(random_vec); // puting on the unit circle
+				if (dot(N, random_vec) < 0) {
+					random_vec = -random_vec;
+				}
+				gen = true;
+			}
+		}
+		return random_vec;
+	}
+
 	float3 directIllumination(int objIdx, float3 intersection, float3 norm, float3 albedo) {
-		if (objIdx == 0) return lightSphere.material.albedo;
+		if (objIdx == 2) return lightSphere.material.albedo;
 		float3 color = (0, 0, 0);
-		for (int i = 0; i < numLightSouces; i++) { // would change once we add more lights
+		for (int i = 0; i < numLightSouces; i++) { 
 			float3 dir_light = normalize(lights[i].position - intersection);
 			float dot_p = dot(dir_light, norm);
 			float intensity = lights[i].intensity / pow(length(lights[i].position - intersection), 2);
@@ -542,13 +552,8 @@ public:
 	{
 		// room walls - ugly shortcut for more speed
 		float t;
-		//if (ray.D.x < 0) PLANE_X( 3, 4 ) else PLANE_X( -2.99f, 5 );
-		//if (ray.D.y < 0) PLANE_Y( 1, 6 ) else PLANE_Y( -2, 7 );
-		//if (ray.D.z < 0) PLANE_Z( 3, 8 ) else PLANE_Z( -3.99f, 9 );
-		//quad.Intersect( ray );
 		lightSphere.Intersect(ray);
 		sphere.Intersect( ray );
-		//sphere2.Intersect( ray );
 		cube.Intersect( ray );
 		for (int i = 0; i < (int)trianglePool.size(); i++) {
 			trianglePool[i]->Intersect(ray);
@@ -580,7 +585,7 @@ public:
 		if (objIdx == -1) return float3( 0 ); // or perhaps we should just crash
 		float3 N;
 		//if (objIdx == 0) N = quad.GetNormal(I);
-		if (objIdx == 0) N = lightSphere.GetNormal(I);
+		if (objIdx == 2) N = lightSphere.GetNormal(I); // check objIDX to 2 from 0
 		if (objIdx == 1) N = sphere.GetNormal(I);
 		//else if (objIdx == 2) N = sphere2.GetNormal(I);
 		else if (objIdx == 3) N = cube.GetNormal(I);

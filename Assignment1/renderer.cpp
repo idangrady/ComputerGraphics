@@ -8,7 +8,10 @@ void Renderer::Init()
 {
 	// create fp32 rgb pixel buffer to render to
 	accumulator = (float4*)MALLOC64(SCRWIDTH * SCRHEIGHT * 16);
+	accumulator_visit = (int*)MALLOC64(SCRWIDTH * SCRHEIGHT * 16);
+
 	memset(accumulator, 0, SCRWIDTH * SCRHEIGHT * 16);
+	memset(accumulator_visit, 0, SCRWIDTH * SCRHEIGHT * 16);
 
 	POINT cursorPosition;
 	GetCursorPos(&cursorPosition);
@@ -21,56 +24,100 @@ void Renderer::Init()
 float3 Renderer::Trace(Ray& ray)
 {
 
-
 	scene.FindNearest(ray);
-	if (ray.objIdx == -1) return float3(0, 0, 0.2); // or a fancy sky color
+	if (ray.objIdx == -1) return float3(0.5f, 0.5f, 0.5f); // or a fancy sky color
 
-	float3 color(0, 0, 0);
+	float3 color(1.0f, 1.0f, 1.0f);
 	float3 I = ray.O + ray.t * ray.D;
 	float3 N = scene.GetNormal(ray.objIdx, I, ray.D);
 	Material& m = scene.getMaterial(ray.objIdx);
 
 	float s = m.specular;
-	float d = m.diffuse; //or: float d = 1 - s; 
 
-	//Ray secondary_ray = ray.reflect(I, N, ray.depthidx);
-	float3 offset_O = I + (0.0002 * N);
-	float3 distance_to_light = scene.lights[0].position - offset_O;
-	float3 dirtolight = normalize(distance_to_light);
-	Ray occlusion_ray = Ray(offset_O, dirtolight, length(distance_to_light));
-	//color += scene.ambient * m.albedo;
+	// for Whitted Tracing --> uncomment 
+	//float d = m.diffuse; 
+	//float3 offset_O = I;
+	//float3 distance_to_light = scene.lights[0].position - offset_O;
+	//float3 dirtolight = normalize(distance_to_light);
+	//Ray occlusion_ray = Ray(offset_O+ 0.0002f * dirtolight, dirtolight, length(distance_to_light), ray.objIdx+1);
+	
+
+	// path tracing 
+	if (ray.objIdx == 2) { 
+		//hit light
+		return m.albedo; // I think this should be normlized other wise it will cause some issue 
+	}
+
 	if (ray.depthidx > max_depth) {
-		// at maximum depth we try to return the last object hit's color, or just darkness for "eternal reflection"
-		if (scene.IsOccluded(occlusion_ray))
-		{
-			return color;
-		}
-		if (d > 0.0) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
 		return color;
 	}
-	if (!scene.IsOccluded(occlusion_ray)) {
-		// -----------------------------------------------------------
-		// less efficient
-		// -----------------------------------------------------------
-		//return  ray.dist.color * (d * directIllum + s * Trace(ray.reflect(I, N, ray.t + 1)));
 
-		// -----------------------------------------------------------
-		// more efficient
-		// -----------------------------------------------------------
-
-		if (d > 0.0) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
-	}
-	if (s > 0.0) {
+	else {
+		if (s > 0)
+		{ // Mirror
 		// Only if we hit front of the material
-		color += s * Trace(ray.Reflect(I, N, ray.depthidx)); // If specular
-	}
-	return color;
+			return Trace(ray.Reflect(I, N)); 
+		}
+		else{
+			float3 BRDF_m = m.albedo; // I deleted the PI because it was cancalled in the return * PI 
+			float3 random_dir = scene.GetDiffuseRefelectDir(N);
 
+			Ray newRay(I + 0.0002f * random_dir, random_dir, 1e34f, ray.depthidx +1 ); //+ 0.0002f * random_dir
+			float3 EI = Trace(newRay) * dot(N, random_dir);
+			return   2.0f * BRDF_m * EI;
+		}
+
+	}
+
+
+	
+
+
+
+		// Whitted Tracing --> uncomment 
+		//if (ray.depthidx > max_depth) {
+		//	// at maximum depth we try to return the last object hit's color, or just darkness for "eternal reflection"
+		//	if (scene.IsOccluded(occlusion_ray))
+		//	{
+		//		return color;
+		//	}
+		//	if (d > 0.0) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
+		//	return color;
+		//}
+		//if (!scene.IsOccluded(occlusion_ray)) {
+		//	// -----------------------------------------------------------
+		//	// less efficient
+		//	// -----------------------------------------------------------
+		//	//return  ray.dist.color * (d * directIllum + s * Trace(ray.reflect(I, N, ray.t + 1)));
+
+		//	// -----------------------------------------------------------
+		//	// more efficient
+		//	// -----------------------------------------------------------
+
+		//	if (d > 0.0) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
+		//}
+		//if (s > 0.0) {
+		//	// Only if we hit front of the material
+		//	color += s * Trace(ray.Reflect(I, N, ray.depthidx)); // If specular
+		//}
+		//return color;
+
+
+
+
+
+	// earlier work
+	// 
+	//return color;
 	/* visualize normal */// return (N + 1) * 0.5f;//* directIllum;
 	/*return*/  //col_;//(N + 1) * directIllum;
 	/* visualize distance */   //return 0.1f * float3( ray.t, ray.t, ray.t );
 	/* visualize albedo */  //return albedo ;
 }
+
+
+
+
 
 // -----------------------------------------------------------
 // Main application tick function - Executed once per frame
@@ -96,16 +143,26 @@ void Renderer::Tick(float deltaTime)
 		}
 		// trace a primary ray for each pixel on the line
 		for (int x = 0; x < SCRWIDTH; x++) {
-			accumulator[x + y * SCRWIDTH] =
-				float4(Trace(camera.GetPrimaryRay(x, y)), 0); // Note for myself to remember: x+y*SCRWIDTH simply make sure we have a consecative num seq.
+			accumulator_visit[x + y * SCRWIDTH]+=1;					// keep track of the amount of time we visited the node;
+			accumulator[x + y * SCRWIDTH] =							// change to +=
+				float4(Trace(camera.GetPrimaryRay(x, y)), 0);		// if static image / accumulator_visit[x + y * SCRWIDTH];
 
 		}
-
 		// translate accumulator contents to rgb32 pixels
 		for (int dest = y * SCRWIDTH, x = 0; x < SCRWIDTH; x++)
 			screen->pixels[dest + x] =
 			RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
+
+																	// If we want to clean the buffer
+																	// 
+																	// if(accumulator_visit[x + y * SCRWIDTH] ==num){
+																	//	accumulator_visit[x + y * SCRWIDTH] = 0;
+																	//	accumulator[x + y * SCRWIDTH] = float4(0, 0, 0, 0);}
+
 	}
+
+
+	//}
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;

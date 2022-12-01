@@ -689,7 +689,8 @@ uint RandomUInt()
 	seed ^= seed << 5;
 	return seed;
 }
-float RandomFloat() { return RandomUInt() * 2.3283064365387e-10f; }
+float RandomFloat() { 
+	return RandomUInt() * 2.3283064365387e-10f; }
 float Rand(float range) { return RandomFloat() * range; }
 // local seed
 uint RandomUInt(uint& seed)
