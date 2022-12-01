@@ -9,6 +9,7 @@ namespace Tmpl8
 		// game flow methods
 		void Init();
 		float3 Trace(Ray& ray);
+
 		void Tick(float deltaTime);
 		void Shutdown() { /* implement if you want to do something on exit */ }
 		// input handling
@@ -22,6 +23,8 @@ namespace Tmpl8
 		// data members
 		int2 mousePos;
 		float4* accumulator;
+		int* accumulator_visit;
+
 		float3 mov;
 		float3 fovc; // interactive FOV
 		Scene scene;
