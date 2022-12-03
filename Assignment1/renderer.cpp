@@ -27,84 +27,12 @@ float3 Renderer::Trace(Ray& ray)
 	scene.FindNearest(ray);
 	if (ray.objIdx == -1) return float3(0.5f, 0.5f, 0.5f); // or a fancy sky color
 
-	float3 color(1.0f, 1.0f, 1.0f);
 	float3 I = ray.O + ray.t * ray.D;
 	float3 N = scene.GetNormal(ray.objIdx, I, ray.D);
 	Material& m = scene.getMaterial(ray.objIdx);
 
-	float s = m.specular;
-
-	// for Whitted Tracing --> uncomment 
-	//float d = m.diffuse; 
-	//float3 offset_O = I;
-	//float3 distance_to_light = scene.lights[0].position - offset_O;
-	//float3 dirtolight = normalize(distance_to_light);
-	//Ray occlusion_ray = Ray(offset_O+ 0.0002f * dirtolight, dirtolight, length(distance_to_light), ray.objIdx+1);
-	
-
-	// path tracing 
-	if (ray.objIdx == 2) { 
-		//hit light
-		return m.albedo; // I think this should be normlized other wise it will cause some issue 
-	}
-
-	if (ray.depthidx > max_depth) {
-		return color;
-	}
-
-	else {
-		if (s > 0)
-		{ // Mirror
-		// Only if we hit front of the material
-			return Trace(ray.Reflect(I, N)); 
-		}
-		else{
-			float3 BRDF_m = m.albedo; // I deleted the PI because it was cancalled in the return * PI 
-			float3 random_dir = scene.GetDiffuseRefelectDir(N);
-
-			Ray newRay(I + 0.0002f * random_dir, random_dir, 1e34f, ray.depthidx +1 ); //+ 0.0002f * random_dir
-			float3 EI = Trace(newRay) * dot(N, random_dir);
-			return   2.0f * BRDF_m * EI;
-		}
-
-	}
-
-
-	
-
-
-
-		// Whitted Tracing --> uncomment 
-		//if (ray.depthidx > max_depth) {
-		//	// at maximum depth we try to return the last object hit's color, or just darkness for "eternal reflection"
-		//	if (scene.IsOccluded(occlusion_ray))
-		//	{
-		//		return color;
-		//	}
-		//	if (d > 0.0) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
-		//	return color;
-		//}
-		//if (!scene.IsOccluded(occlusion_ray)) {
-		//	// -----------------------------------------------------------
-		//	// less efficient
-		//	// -----------------------------------------------------------
-		//	//return  ray.dist.color * (d * directIllum + s * Trace(ray.reflect(I, N, ray.t + 1)));
-
-		//	// -----------------------------------------------------------
-		//	// more efficient
-		//	// -----------------------------------------------------------
-
-		//	if (d > 0.0) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
-		//}
-		//if (s > 0.0) {
-		//	// Only if we hit front of the material
-		//	color += s * Trace(ray.Reflect(I, N, ray.depthidx)); // If specular
-		//}
-		//return color;
-
-
-
-
+	if (sendWhitted) { return Whitted(I, N, ray, m); }
+	else return RE(I, N, ray, m);
 
 	// earlier work
 	// 
@@ -114,10 +42,6 @@ float3 Renderer::Trace(Ray& ray)
 	/* visualize distance */   //return 0.1f * float3( ray.t, ray.t, ray.t );
 	/* visualize albedo */  //return albedo ;
 }
-
-
-
-
 
 // -----------------------------------------------------------
 // Main application tick function - Executed once per frame
@@ -143,26 +67,23 @@ void Renderer::Tick(float deltaTime)
 		}
 		// trace a primary ray for each pixel on the line
 		for (int x = 0; x < SCRWIDTH; x++) {
-			accumulator_visit[x + y * SCRWIDTH]+=1;					// keep track of the amount of time we visited the node;
-			accumulator[x + y * SCRWIDTH] =							// change to +=
-				float4(Trace(camera.GetPrimaryRay(x, y)), 0);		// if static image / accumulator_visit[x + y * SCRWIDTH];
-
+			if (static_scene) {
+				accumulator_visit[x + y * SCRWIDTH] += 1;
+				accumulator[x + y * SCRWIDTH] +=							
+					float4(Trace(camera.GetPrimaryRay(x, y)), 0)/ accumulator_visit[x + y * SCRWIDTH];
+			}
+			else {
+				if (num_antiAlias > 1) {																		// anti aliasing over num_antiAlias values
+					accumulator[x + y * SCRWIDTH] = Antialiasing(x,y);}
+				else accumulator[x + y * SCRWIDTH] = float4(Trace(camera.GetPrimaryRay(x, y)), 0);
+				}
 		}
 		// translate accumulator contents to rgb32 pixels
 		for (int dest = y * SCRWIDTH, x = 0; x < SCRWIDTH; x++)
 			screen->pixels[dest + x] =
 			RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
-
-																	// If we want to clean the buffer
-																	// 
-																	// if(accumulator_visit[x + y * SCRWIDTH] ==num){
-																	//	accumulator_visit[x + y * SCRWIDTH] = 0;
-																	//	accumulator[x + y * SCRWIDTH] = float4(0, 0, 0, 0);}
-
-	}
-
-
-	//}
+		}
+	
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
@@ -202,6 +123,64 @@ void Tmpl8::Renderer::KeyDown(int key)
 	if (key == 0x43) mov += float3(0, -1, 0); // C
 	if (key == 0x45) fovc += float3(-1, 0, 0);// E
 	if (key == 0x51) fovc += float3(1, 0, 0);// Q
+}
 
+float3 Tmpl8::Renderer::Whitted(float3 I,float3 N,  Ray & ray, Material& m)
+{
+	float d = m.diffuse; 
+	float s = m.specular;
+
+	float3 distance_to_light = scene.lights[0].position - I;
+	float3 dirtolight = normalize(distance_to_light);
+	Ray occlusion_ray = Ray(I + 0.0002f * dirtolight, dirtolight, length(distance_to_light), ray.objIdx+1);
+
+	// Whitted Tracing --> uncomment 
+if (ray.depthidx > max_depth) {
+	// at maximum depth we try to return the last object hit's color, or just darkness for "eternal reflection"
+
+if (scene.IsOccluded(occlusion_ray)) return float3(0.0f, 0.0f, 0.0f); }						// occlusion
+if (!scene.IsOccluded(occlusion_ray)) {
+	if (d > 0.0) return  d * scene.directIllumination(ray.objIdx, I, N, m.albedo);			// If diffuse
+	if (s > 0.0)  return  s * Trace(ray.Reflect(I, N));										// If specular -> // Only if we hit front of the material
+}
+return float3(0.0f, 0.0f, 0.0f);
+}
+
+
+float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m)
+{	
+	// path tracing 
+	if (ray.objIdx == 2) {
+		//hit light
+		return m.albedo; // I think this should be normlized other wise it will cause some issue 
+	}
+	if (ray.depthidx > max_depth) {
+		return float3(0.9f, 0.9f, 0.9f);
+	}
+	else {
+		if (m.specular > 0)
+		{ // Mirror
+		// Only if we hit front of the material
+			return Trace(ray.Reflect(I, N));
+		}
+		else {
+			float3 BRDF_m = m.albedo; // I deleted the PI because it was cancalled in the return * PI 
+			float3 random_dir = scene.GetDiffuseRefelectDir(N);
+			Ray newRay(I + 0.0002f * random_dir, random_dir, 1e34f, ray.depthidx + 1); //+ 0.0002f * random_dir
+			float3 EI = Trace(newRay) * dot(N, random_dir);
+			return   2.0f * BRDF_m * EI;
+		}
+	}
+}
+
+float4 Tmpl8::Renderer::Antialiasing(int x, int y)
+{
+	float4 color(0.0f, 0.0f, 0.0f, 0.0f);
+	for (uint8_t i = num_antiAlias; i > 0; i--) {
+		float x_ = (float)x + (2 * RandomFloat() - 1) +0.5;						// + 0.5 to bring it to the middle of the pixel of the x axis
+		float y_ = (float)y + (2 * RandomFloat() - 1) + 0.5;					// + 0.5 to bring it to the middle of the pixel of the y axis
+		color += float4(Trace(camera.GetPrimaryRayRandomized(x_, y_)), 0);		// I checked, if I send float x, float y to GetPrimaryRay, it convert it to int. 
+	}
+	return color / (float)num_antiAlias;
 
 }

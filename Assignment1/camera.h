@@ -71,12 +71,6 @@ public:
 		return normalize((topRight + bottomLeft)/2 - camPos );}
 
 
-	//void zoom(float speed) {
-	//	float3 cam_dir = getdirection();
-	//	topLeft += speed * cam_dir; topRight += speed * cam_dir; bottomLeft += speed * cam_dir;
-	//}
-
-
 	Ray GetPrimaryRay( const int x, const int y )
 	{
 		// calculate pixel position on virtual screen plane
@@ -84,6 +78,16 @@ public:
 		const float v = (float)y * (1.0f / SCRHEIGHT);
 		const float3 P = topLeft + u * (topRight - topLeft) + v * (bottomLeft - topLeft);
 		return Ray( camPos, normalize( P - camPos ) );
+	}
+
+	Ray GetPrimaryRayRandomized(const float x, const float  y)								// I am still wondering whether to leave it like
+																							// that (twoo similar func) , or to try to write it differently
+	{
+		// calculate pixel position on virtual screen plane for randomized 
+		const float u = x * (1.0f / SCRWIDTH);
+		const float v = y * (1.0f / SCRHEIGHT);
+		const float3 P = topLeft + u * (topRight - topLeft) + v * (bottomLeft - topLeft);
+		return Ray(camPos, normalize(P - camPos));
 	}
 
 
