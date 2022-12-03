@@ -26,7 +26,7 @@ namespace Tmpl8
 		Scene scene;
 		Camera camera;
 
-		int max_depth = 20;
+		int max_depth = 10;
 	};
 
 } // namespace Tmpl8
