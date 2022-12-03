@@ -70,6 +70,7 @@ public:
 		// intersection = origin, norm = norm from intersected object
 		float3 dir = this->D;
 		float3 reflected = dir - 2 * (dot(dir, norm) * norm);
+		reflected /= length(reflected); // This fixes nan errors in diffraction code somehow. Floating point inaccuracies?
 		Ray ray = Ray(intersec + (0.0002 * reflected), reflected, 1e34f, idx + 1);
 		//ray.objIdx = this->objIdx;
 		//ray.inside = this->inside;
@@ -405,7 +406,7 @@ public:
 		// we store all primitives in one continuous buffer
 		//quad = Quad( 0, 1 );									// 0: light source
 		lightSphere = Sphere(0, lights[0].position, 0.05);
-		lightSphere.material.albedo = (24, 24, 24);
+		lightSphere.material.albedo = (1, 1, 1);
 		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball   0.5f
 		sphere2 = Sphere( 2, float3( 0, -1.5f, -1.05f ), 0.5f );	// 2: glass ball
 		sphere2.material.albedo = float3(0.2, 0.8, 0.2);

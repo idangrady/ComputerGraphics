@@ -57,30 +57,29 @@ float3 Renderer::Trace( Ray& ray)
 		float traveled = ray.t;
 		float3 interim_color = float3(0, 0, 0);
 		float cos_theta_i = dot(N, -ray.D);
-		{ // Inner scope cuz lots of terms
-
+		float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
+		if(k > 0.00001f) { // Inner scope cuz lots of terms. Also we use k > 0.0001f to account for stupid float inaccuracies.
 			float sin_theta_i = length(cross(N, -ray.D));
 			float refr_sin = (refr * sin_theta_i);
 			float cos_theta_t = sqrtf(1.0f - (refr_sin * refr_sin));
-			float first_term = (n1 * cos_theta_i - n2 * cos_theta_t) / (n1 * cos_theta_i + n2 * cos_theta_t);
-			float second_term = (n1 * cos_theta_t - n2 * cos_theta_i) / (n1 * cos_theta_t + n2 * cos_theta_i);
+			float first_term = ((n1 * cos_theta_i) - (n2 * cos_theta_t)) / ((n1 * cos_theta_i) + (n2 * cos_theta_t));
+			float second_term = ((n1 * cos_theta_t) - (n2 * cos_theta_i)) / ((n1 * cos_theta_t) + (n2 * cos_theta_i));
 			R = 0.5f * ((first_term * first_term) + (second_term * second_term));
 			T = 1.0f - R;
 			// Double check for correctness later
-			//cout << "R: " << R << endl;
-			//cout << "T: " << T << endl;
+			float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
+			t_dir /= length(t_dir);
+			interim_color += T * Trace(Ray(I + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx + 1));
+		}
+		else
+		{
+			R = 1.0f;
+			T = 0.0f;
 		}
 		if (R > 0.0f && ray.depthidx <= max_depth) {
-			// Cheap hack if we have total internal reflection: just don't reflect anymore. Is this legal?
-			if(!hit_back) interim_color += R * Trace(ray.Reflect(I, N, ray.depthidx));
+			interim_color += R * Trace(ray.Reflect(I, N, ray.depthidx));
 		}
-		if (T > 0.0f) {
-			float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
-			if (k >= 0) {
-				float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
-				interim_color += T * Trace(Ray(I + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx));
-			}
-		}
+		
 		if (hit_back) { // If we go from glass to air, we have to absorb some of the light we found (because we traverse in reverse order!)
 			interim_color.x *= exp(-m.absorption.x * traveled);
 			interim_color.y *= exp(-m.absorption.y * traveled);
