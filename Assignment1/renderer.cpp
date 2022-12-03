@@ -50,7 +50,7 @@ void Renderer::Tick(float deltaTime)
 {
 	// animation
 	static float animTime = 0;
-	scene.SetTime(animTime += deltaTime * 0.002f);
+	if(!static_scene) scene.SetTime(animTime += deltaTime * 0.002f);
 
 	//Camera
 	const float speed = 0.2f;
@@ -125,30 +125,32 @@ void Tmpl8::Renderer::KeyDown(int key)
 	if (key == 0x51) fovc += float3(1, 0, 0);// Q
 }
 
-float3 Tmpl8::Renderer::Whitted(float3 I,float3 N,  Ray & ray, Material& m)
+float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m)
 {
-	float d = m.diffuse; 
+	float d = m.diffuse;
 	float s = m.specular;
+	float3 color = (0, 0, 0);
 
 	float3 distance_to_light = scene.lights[0].position - I;
 	float3 dirtolight = normalize(distance_to_light);
-	Ray occlusion_ray = Ray(I + 0.0002f * dirtolight, dirtolight, length(distance_to_light), ray.objIdx+1);
+	Ray occlusion_ray = Ray(I + 0.0002f * dirtolight, dirtolight, length(distance_to_light), ray.objIdx + 1);
 
-	// Whitted Tracing --> uncomment 
-if (ray.depthidx > max_depth) {
-	// at maximum depth we try to return the last object hit's color, or just darkness for "eternal reflection"
-
-if (scene.IsOccluded(occlusion_ray)) return float3(0.0f, 0.0f, 0.0f); }						// occlusion
-if (!scene.IsOccluded(occlusion_ray)) {
-	if (d > 0.0) return  d * scene.directIllumination(ray.objIdx, I, N, m.albedo);			// If diffuse
-	if (s > 0.0)  return  s * Trace(ray.Reflect(I, N));										// If specular -> // Only if we hit front of the material
-}
-return float3(0.0f, 0.0f, 0.0f);
+	if (ray.depthidx <= max_depth) {
+		if (s > 0.0)  color += s * Trace(ray.Reflect(I, N)); // If specular
+		if (d > 0.0 && !scene.IsOccluded(occlusion_ray)) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo);	// If diffuse
+	}
+	else {
+		// at maximum depth we try to return the last object hit's color, or just darkness for "eternal reflection"
+		if (d > 0.0 && !scene.IsOccluded(occlusion_ray)) color += (d + s) * scene.directIllumination(ray.objIdx, I, N, m.albedo);
+	}
+	return color;
 }
 
 
 float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m)
 {	
+	float d = m.diffuse;
+	float s = m.specular;
 	// path tracing 
 	if (ray.objIdx == 2) {
 		//hit light
@@ -158,17 +160,17 @@ float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m)
 		return float3(0.9f, 0.9f, 0.9f);
 	}
 	else {
-		if (m.specular > 0)
+		float random = RandomFloat();
+		if (random > d) // Randomly reflect
 		{ // Mirror
-		// Only if we hit front of the material
 			return Trace(ray.Reflect(I, N));
 		}
-		else {
+		else { // Randomly diffuse
 			float3 BRDF_m = m.albedo; // I deleted the PI because it was cancalled in the return * PI 
 			float3 random_dir = scene.GetDiffuseRefelectDir(N);
 			Ray newRay(I + 0.0002f * random_dir, random_dir, 1e34f, ray.depthidx + 1); //+ 0.0002f * random_dir
 			float3 EI = Trace(newRay) * dot(N, random_dir);
-			return   2.0f * BRDF_m * EI;
+			return 2.0f * BRDF_m * EI;
 		}
 	}
 }
