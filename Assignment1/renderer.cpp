@@ -26,7 +26,8 @@ float3 Renderer::Trace(Ray& ray)
 {
 
 	scene.FindNearest(ray);
-	if (ray.objIdx == -1) return float3(0.5f, 0.5f, 0.5f); // or a fancy sky color
+	//if (ray.objIdx == -1) return float3(0.5f, 0.5f, 0.5f); // or a fancy sky color
+	if (ray.objIdx == -1) return scene.getSkyBox(ray.D); // or a fancy sky color
 
 	float3 I = ray.O + ray.t * ray.D;
 	bool hit_back = false;
