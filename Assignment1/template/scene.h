@@ -1,7 +1,7 @@
 #pragma once
 #include <map>
 #include <random>
-
+#include <config.h>
 // -----------------------------------------------------------
 // scene.h
 // Simple test scene for ray tracing experiments. Goals:
@@ -31,13 +31,6 @@ enum class Medium {
 	Glass = 1,
 };
 
-struct Light {
-	Light() = default;
-	Light(float3 p, float i) : position(p), lumen(i) {}
-	float3 position;
-	float3 color;
-	float lumen;
-};
 
 struct Material
 {
@@ -50,7 +43,26 @@ struct Material
 	Medium mat_medium{ Medium::Undefined };
 };
 
+//struct Light {
+//	Light() = default;
+//	Light(float3 p, float i) : position(p), lumen(i) {}
+//	float3 position;
+//	float3 color;
+//	float lumen;
+//};
+
+//struct areaLight :light {
+//
+//	void init() {
+//
+//	}
+//};
+
+
+
 namespace Tmpl8 {
+
+
 
 __declspec(align(64)) class Ray
 {
@@ -327,6 +339,66 @@ public:
 	};
 };
 
+
+class light {
+
+public:
+	light() = default;
+	light(float i, uint8_t id) : lumen(i), idx(id) {}
+	float3 color{ 1.0f, 1.0f, 1.0f };
+	float lumen;
+	int idx;
+
+	void setLightColor(float3 c) { color = c; };
+	uint8_t getidx() { return idx; }
+	float3 getLightColor() const { return lumen* color; };
+};
+class Triangle; class Ray; class Sphere;
+class areaLight :light
+{
+public:
+	areaLight() = default;
+	areaLight(float i, int id, float3 p1_, float3 p2_, float3 p3_, float3 p4_, float3 p5_, float3 p6_) :light(i, id) {
+		p1 = p1_; p2 = p2_; p3 = p3_;  p4 = p4_;  p5 = p5_;  p6 = p6_;
+		cout << id << endl;
+		triangle_p1 = new Triangle(p1_, p2_, p3_, id);
+		triangle_p2 = new Triangle(p4_, p5_, p6, id );
+		triangle_p1->material.isLight = true;
+		triangle_p2->material.isLight = true;
+		//triangle_p1->material.;
+		//triangle_p2->material.isLight = true;
+
+
+	};
+
+	void Intersect(Ray& ray) const  {
+		triangle_p1->Intersect(ray); triangle_p2->Intersect(ray);
+	}
+	float3 getcolor() const { return getLightColor(); };
+	int getIdx() const { return idx; };
+	float getLumen() const { return lumen; };
+
+	float3 p1; float3 p2; float3 p3; float3 p4; float3 p5; float3 p6;
+	Triangle* triangle_p1;
+	Triangle* triangle_p2;
+};
+
+class pointLight :light
+{
+public:
+	pointLight() = default;
+	pointLight(float lumen, float3 p1_, int id) :light(lumen, id) {
+		position = p1_;
+		sphereLight = new Sphere(id, position, 0.05);
+	};
+	float3 position;
+	Sphere* sphereLight;
+	float3 getcolor() const { return getLightColor(); };
+	uint8_t getIdx() const { return idx; };
+	float getLumen() const { return lumen; };
+
+};
+
 // -----------------------------------------------------------
 // Quad primitive
 // Oriented quad, intended to be used as a light source.
@@ -385,7 +457,6 @@ class Scene
 public:
 	Scene()
 	{
-		lights[0] = Light(float3(0, 1.5, 0.5), 24);
 		// Precalc refractive mappings
 		refractiveIndex[Medium::Air] = 1.0;
 		refractiveIndex[Medium::Glass] = 1.52;
@@ -404,8 +475,8 @@ public:
 
 		// we store all primitives in one continuous buffer
 		//quad = Quad( 0, 1 );									// 0: light source
-		lightSphere = Sphere(0, lights[0].position, 0.05);
-		lightSphere.material.albedo = (1, 1, 1);
+
+		//lightSphere.material.albedo = (1, 1, 1);
 		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball   0.5f
 		sphere2 = Sphere( 2, float3( 0, -1.5f, -1.05f ), 0.5f );	// 2: glass ball
 		sphere2.material.albedo = float3(0.2, 0.8, 0.2);
@@ -417,6 +488,12 @@ public:
 		cube2.material.albedo = float3(0.2f, 0.2f, 0.2f);
 		cube2.material.absorption = float3(0);
 		
+
+		area_lights[0] = areaLight(24, 6 - 10, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5));
+		spot_lights[0] = pointLight(24, float3(0, 1.5, 0.5), 5);
+		//lightSphere = L[0];
+
+
 		Triangle* triangle = new Triangle(float3(-0.9f, 0, -1), float3(0.2f, 0, -1), float3(0, 1.0f, -0.5), 0); // 10: triangle
 		// Left wall
 		Triangle* wall_l0 = new Triangle(float3(-3, -3, 3), float3(-3, -3, -3), float3(-3, 3, 3), 1);
@@ -436,6 +513,7 @@ public:
 		Triangle* ceiling_1 = new Triangle(float3(-3, 3, -3), float3(3, 3, -3), float3(-3, 3, 3), 8);
 		ceiling_0->material.albedo = float3(0.0, 0.5, 0.5);
 		ceiling_1->material.albedo = float3(0.0, 0.5, 0.5);
+
 		// Back wall
 		Triangle* wall_b0 = new Triangle(float3(-3, -3, 3), float3(-3, 3, 3), float3(3, -3, 3), 9);
 		Triangle* wall_b1 = new Triangle(float3(3, 3, 3), float3(3, -3, 3), float3(-3, 3, 3), 10);
@@ -446,6 +524,14 @@ public:
 		Triangle* floor_1 = new Triangle(float3(-3, -3, -3), float3(-3, -3, 3), float3(3, -3, -3), 12);
 		floor_0->material.albedo = float3(0.2, 1, 0);
 		floor_1->material.albedo = float3(0.2, 1, 0);
+
+		//// area light
+		//Triangle* light_1 = new Triangle(float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), 13);
+		//Triangle* light_2 = new Triangle(float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5), 14);
+		//light_1->material.albedo = float3(1.0, 1.0, 1.0);
+		//light_2->material.albedo = float3(1.0, 1.0, 1.0);
+
+
 		trianglePool.push_back(triangle);
 		trianglePool.push_back(wall_l0);
 		trianglePool.push_back(wall_l1);
@@ -459,6 +545,9 @@ public:
 		trianglePool.push_back(wall_b1);
 		trianglePool.push_back(floor_0);
 		trianglePool.push_back(floor_1);
+		//trianglePool.push_back(light_1);
+		//trianglePool.push_back(light_2);
+
 		SetTime( 0 );
 		// Note: once we have triangle support we should get rid of the class
 		// hierarchy: virtuals reduce performance somewhat.
@@ -480,31 +569,39 @@ public:
 		float tm = 1 - sqrf( fmodf( animTime, 2.0f ) - 1 );
 		sphere.pos = float3( -1.4f, -0.5f + tm, 2 );
 	}
-	float3 GetLightPos() const
+	float3 GetLightPos(int i =0) const
 	{
 		// light point position is the middle of the swinging quad
 		//float3 corner1 = TransformPosition( float3( -0.5f, 0, -0.5f ), quad.T  );
 		//float3 corner2 = TransformPosition( float3( 0.5f, 0, 0.5f ) , quad.T );
 		//return (corner1 + corner2) * 0.5f - float3( 0, 0.01f, 1 );
-		return lights[0].position;
+		return spot_lights[i].position;
 	}
 
 	Material getMaterial(int objIdx) const
 	{
+
 		if (objIdx == -1) throw exception("There's no material for nothing"); // or perhaps we should just crash
 		//if (objIdx == 0) return quad.material;
-		if (objIdx == 0) return lightSphere.material; //Jax:  chancged idx to 2
+		//if (objIdx == 0) return lightSphere.position; 
 		else if (objIdx == 1) return sphere.material;
 		else if (objIdx == 2) return sphere2.material;
 		else if (objIdx == 3) return cube.material;
 		else if (objIdx == 4) return cube2.material;
+		else if (objIdx == 5) return spot_lights[0].getcolor();					// if we add multiple light souce this would need to change
+		else if (objIdx == 6) return area_lights[0].getcolor();	// if we add multiple light souce this would need to change
+
 		else if (objIdx >= 10) return trianglePool[objIdx - 10]->material;
+		cout << objIdx << endl;
 		throw exception("ID not known");
 	}
 
-	float3 GetLightColor() const
+	float3 GetLightColor(int i =0) const
 	{
-		return lights[0].color; 
+		if (isSpotLight) {
+			return spot_lights[i].getcolor();}
+		else {
+			return area_lights[i].getcolor();}
 	}
 
 	float3 GetDiffuseRefelectDir(float3 N) {
@@ -534,12 +631,14 @@ public:
 	}
 
 	float3 directIllumination(int objIdx, float3 intersection, float3 norm, float3 albedo) {
-		if (objIdx == 0) return lightSphere.material.albedo;
+		if (objIdx == 6) { 
+			int i = 2;
+			return spot_lights[0].getcolor(); }
 		float3 color = (0, 0, 0);
-		for (int i = 0; i < numLightSouces; i++) { 
-			float3 dir_light = normalize(lights[i].position - intersection);
+		for (int i = 0; i < size(spot_lights); i++) {
+			float3 dir_light = normalize(spot_lights[i].position - intersection);
 			float dot_p = dot(dir_light, norm);
-			float intensity = lights[i].lumen / pow(length(lights[i].position - intersection), 2);
+			float intensity = spot_lights[i].getLumen() / pow(length(spot_lights[i].position - intersection), 2);
 
 			// -----------------------------------------------------------
 			// regular
@@ -558,7 +657,12 @@ public:
 	{
 		// room walls - ugly shortcut for more speed
 		float t;
-		lightSphere.Intersect(ray);
+		if (isSpotLight) {
+			spot_lights[0].sphereLight->Intersect(ray);
+
+		}else{
+			area_lights[0].Intersect(ray);
+		}
 		sphere.Intersect( ray );
 		sphere2.Intersect( ray );
 		cube.Intersect( ray );
@@ -588,18 +692,24 @@ public:
 	}
 	float3 GetNormal( int objIdx, float3 I, float3 wo, bool& hit_back) const
 	{
+		if (objIdx == -1) return float3(0); // or perhaps we should just crash
+		float3 N;
+		if (objIdx == 24) {
+			int i = 2;
+			cout << objIdx << " " << trianglePool.size() << endl;
+
+		}
 		// we get the normal after finding the nearest intersection:
 		// this way we prevent calculating it multiple times.
-
-		if (objIdx == -1) return float3( 0 ); // or perhaps we should just crash
-		float3 N;
-		//if (objIdx == 0) N = quad.GetNormal(I);
-		if (objIdx == 0) N = lightSphere.GetNormal(I); // check objIDX to 2 from 0
+			//if (objIdx == 0) N = quad.GetNormal(I);
+		//if (objIdx == 0) N = lightSphere.sphereLight->GetNormal(I);
 		if (objIdx == 1) N = sphere.GetNormal(I);
 		else if (objIdx == 2) N = sphere2.GetNormal(I);
 		else if (objIdx == 3) N = cube.GetNormal(I);
 		else if (objIdx == 4) N = cube2.GetNormal(I);
+
 		else if (objIdx >= 10) N = trianglePool[objIdx - 10]->GetNormal();
+		
 		//else 
 		//{
 		//	// faster to handle the 6 planes without a call to GetNormal
@@ -613,19 +723,31 @@ public:
 	float animTime = 0;
 	const float ambient = 0.005;
 	//Quad quad;
-	Light lights[1];
+	//Light lights[1];
+	pointLight spot_lights[1];
+	areaLight area_lights[1];
+
+	pointLight lightSphere;
+
 	Sphere sphere;
-	Sphere lightSphere;
 	Sphere sphere2;
 	Cube cube;
 	Cube cube2;
+
 	//Plane plane[6];
 	static inline vector<Triangle*> trianglePool;
+
+
 	static inline vector<Sphere*> spherePool;
 	static inline map<string, Material> materialMap;
 	map<Medium, float> refractiveIndex;
 	map<Medium, map<Medium, float>> refractiveTransmissions;
-	int numLightSouces=1; // should be initilize better in the future
+	//int numLightSouces=1;								// should be initilize better in the future
+
+
+	bool isSpotLight= sendWhittedCONFIG;								// we will need to find one variable that connect both is spot to whitted
 };
+
+
 
 }

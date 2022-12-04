@@ -1,6 +1,6 @@
 #pragma once
 #define STATIC 0
-
+#include<config.h>
 namespace Tmpl8
 {
 
@@ -29,7 +29,7 @@ namespace Tmpl8
 		float4* accumulator;
 		float frame;
 
-		bool sendWhitted = true;
+		bool sendWhitted = sendWhittedCONFIG;
 
 		uint8_t num_antiAlias = 1;
 
