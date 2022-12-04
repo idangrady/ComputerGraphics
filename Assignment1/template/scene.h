@@ -534,7 +534,7 @@ public:
 	}
 
 	float3 directIllumination(int objIdx, float3 intersection, float3 norm, float3 albedo) {
-		if (objIdx == 2) return lightSphere.material.albedo;
+		if (objIdx == 0) return lightSphere.material.albedo;
 		float3 color = (0, 0, 0);
 		for (int i = 0; i < numLightSouces; i++) { 
 			float3 dir_light = normalize(lights[i].position - intersection);
