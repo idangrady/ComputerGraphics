@@ -25,9 +25,6 @@
 #define PLANE_Y(o,i) {if((t=-(ray.O.y+o)*ray.rD.y)<ray.t)ray.t=t,ray.objIdx=i;}
 #define PLANE_Z(o,i) {if((t=-(ray.O.z+o)*ray.rD.z)<ray.t)ray.t=t,ray.objIdx=i;}
 
-
-
-
 enum class Medium {
 	Undefined = -1,
 	Air = 0,
@@ -36,22 +33,20 @@ enum class Medium {
 
 struct Light {
 	Light() = default;
-	Light(int idx,float3 p, float i) :objIdx(idx), position(p), intensity(i) {}
+	Light(float3 p, float i) : position(p), lumen(i) {}
 	float3 position;
 	float3 color;
-	float intensity;
-	int objIdx;
-
+	float lumen;
 };
 
 struct Material
 {
 	Material() = default;
-	Material(float3 a, float d, float s, float dif, Medium m) : albedo(a), diffuse(d), specular(s), diffractive(dif), mat_medium(m) {}
-	float3 albedo = (0.9, 0.9, 0.9); // color material
-	float diffuse = 1; // material 
-	float specular = 0;
-	float diffractive = 0;
+	Material(float3 a, float s = 1, Medium m = Medium::Undefined) : albedo(a), specularity(s), mat_medium(m) {}
+	float3 albedo = (0.9f, 0.9f, 0.9f); // color material
+	float specularity;
+	bool isLight = false;
+	float3 absorption = (0, 0, 0);
 	Medium mat_medium{ Medium::Undefined };
 };
 
@@ -77,8 +72,9 @@ public:
 	Ray Reflect(float3 I,float3 N) { 
 		// create a secondary ray
 		// intersection = origin, norm = norm from intersected object
-		float3 dir = normalize(this->D);
-		return Ray(I + (0.0002f * N), dir - 2 * (dot(dir, N) * N), 1e34f, depthidx + 1);
+		float3 dir = this->D;
+		float3 reflected = normalize(dir - 2.0f * (dot(dir, N) * N));
+		return Ray(I + (0.0002f * reflected), reflected, 1e34f, depthidx + 1);
 		
 	}
 	// ray data
@@ -91,9 +87,10 @@ public:
 #endif
 	float t = 1e34f;
 	int objIdx = -1;
-	bool inside = false; // true when in medium
-	int depthidx=0;
-
+	int depthidx = 0;
+	//float3 nearestcolor;
+	//float4 nearestmat;
+	//float3 Norm_surf;
 };
 
 // -----------------------------------------------------------
@@ -147,9 +144,7 @@ public:
 	static int id; 
 	Material material = {
 		float3(0, 0, 1), //albedo
-		1.0, //diffuse
-		0.0, //specular
-		0.0, //diffraction
+		0.0, //specularity
 		Medium::Undefined, //medium
 	};
 };
@@ -270,12 +265,9 @@ public:
 	int objIdx = -1;
 	Material material = {
 		float3(0, 1, 0), //albedo
-		0.8, //diffuse
-		0.2, //specular
-		0.0, //diffraction
+		0.2, //specularity
 		Medium::Undefined, //medium
 	};
-	float3 color = float3(0, 1, 0);;
 };
 
 // -----------------------------------------------------------
@@ -330,9 +322,7 @@ public:
 	float3 normal;
 	Material material = {
 		float3(1, 0, 0), //albedo
-		1.0, //diffuse
-		0.0, //specular
-		0.0, //diffraction
+		0.0, //specularity
 		Medium::Undefined, //medium
 	};
 };
@@ -375,9 +365,7 @@ public:
 	}
 	Material material = {
 		float3(1, 1, 0), //albedo
-		1.0, //diffuse
-		0.0, //specular
-		0.0, //diffraction
+		0.0, //specularity
 		Medium::Undefined, //medium
 	};
 	float size;
@@ -397,20 +385,37 @@ class Scene
 public:
 	Scene()
 	{
-		lights[0] = Light(0,float3(0, 1.5, 0.5), 24);
-		// Precalc indices
-		refractiveIndices[Medium::Glass][Medium::Air] = 1.0 / 1.52;
-		refractiveIndices[Medium::Air][Medium::Glass] = 1.52;
+		lights[0] = Light(float3(0, 1.5, 0.5), 24);
+		// Precalc refractive mappings
+		refractiveIndex[Medium::Air] = 1.0;
+		refractiveIndex[Medium::Glass] = 1.52;
+		for (int i = 0; i < refractiveIndex.size(); i++) {
+			Medium a = static_cast<Medium>(i);
+			for (int j = 0; j < refractiveIndex.size(); j++) {
+				Medium b = static_cast<Medium>(j);
+				if (j == i) refractiveTransmissions[a][b] = 1.0;
+				else refractiveTransmissions[a][b] = refractiveIndex[a] / refractiveIndex[b];
+			}
+		}
 		// Precalc some materials
-		Material mirror = Material(float3(0, 0.2, 0), 0.0, 1.0, 0.0, Medium::Undefined);
+		Material mirror = Material(float3(0, 1.0, 0), 1.0, Medium::Undefined);
 		materialMap["Mirror"] = mirror;
 
 
 		// we store all primitives in one continuous buffer
-		lightSphere = Sphere(2, lights[0].position, 0.05);
-		lightSphere.material.albedo = (24, 24, 24);
+		//quad = Quad( 0, 1 );									// 0: light source
+		lightSphere = Sphere(0, lights[0].position, 0.05);
+		lightSphere.material.albedo = (1, 1, 1);
 		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball   0.5f
+		sphere2 = Sphere( 2, float3( 0, -1.5f, -1.05f ), 0.5f );	// 2: glass ball
+		sphere2.material.albedo = float3(0.2, 0.8, 0.2);
+		sphere2.material.mat_medium = Medium::Glass;
+		sphere2.material.absorption = float3(0.2f, 2.0f, 4.0f);
 		cube = Cube(3, float3(0), float3(1.15f));				// 3: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
+		cube2 = Cube(4, float3(0, -1.0f, -2.0f), float3(0.8f)); // 4 Glass cube?
+		cube2.material.mat_medium = Medium::Glass;
+		cube2.material.albedo = float3(0.2f, 0.2f, 0.2f);
+		cube2.material.absorption = float3(0);
 		
 		Triangle* triangle = new Triangle(float3(-0.9f, 0, -1), float3(0.2f, 0, -1), float3(0, 1.0f, -0.5), 0); // 10: triangle
 		// Left wall
@@ -488,10 +493,11 @@ public:
 	{
 		if (objIdx == -1) throw exception("There's no material for nothing"); // or perhaps we should just crash
 		//if (objIdx == 0) return quad.material;
-		if (objIdx == 2) return lightSphere.material; //Jax:  chancged idx to 2
+		if (objIdx == 0) return lightSphere.material; //Jax:  chancged idx to 2
 		else if (objIdx == 1) return sphere.material;
-		//else if (objIdx == 2) return sphere2.material;
+		else if (objIdx == 2) return sphere2.material;
 		else if (objIdx == 3) return cube.material;
+		else if (objIdx == 4) return cube2.material;
 		else if (objIdx >= 10) return trianglePool[objIdx - 10]->material;
 		throw exception("ID not known");
 	}
@@ -533,7 +539,7 @@ public:
 		for (int i = 0; i < numLightSouces; i++) { 
 			float3 dir_light = normalize(lights[i].position - intersection);
 			float dot_p = dot(dir_light, norm);
-			float intensity = lights[i].intensity / pow(length(lights[i].position - intersection), 2);
+			float intensity = lights[i].lumen / pow(length(lights[i].position - intersection), 2);
 
 			// -----------------------------------------------------------
 			// regular
@@ -554,7 +560,9 @@ public:
 		float t;
 		lightSphere.Intersect(ray);
 		sphere.Intersect( ray );
+		sphere2.Intersect( ray );
 		cube.Intersect( ray );
+		cube2.Intersect(ray);
 		for (int i = 0; i < (int)trianglePool.size(); i++) {
 			trianglePool[i]->Intersect(ray);
 		}
@@ -566,8 +574,9 @@ public:
 		// skip planes: it is not possible for the walls to occlude anything
 		//quad.Intersect( ray );
 		sphere.Intersect( ray );
-		//sphere2.Intersect( ray );
+		sphere2.Intersect( ray );
 		cube.Intersect( ray );
+		cube2.Intersect(ray);
 		for (int i = 0; i < (int)trianglePool.size(); i++) {
 			trianglePool[i]->Intersect(ray);
 		}
@@ -577,7 +586,7 @@ public:
 		// - we store objIdx and t when we just need a yes/no
 		// - we don't 'early out' after the first occlusion
 	}
-	float3 GetNormal( int objIdx, float3 I, float3 wo ) const
+	float3 GetNormal( int objIdx, float3 I, float3 wo, bool& hit_back) const
 	{
 		// we get the normal after finding the nearest intersection:
 		// this way we prevent calculating it multiple times.
@@ -585,10 +594,11 @@ public:
 		if (objIdx == -1) return float3( 0 ); // or perhaps we should just crash
 		float3 N;
 		//if (objIdx == 0) N = quad.GetNormal(I);
-		if (objIdx == 2) N = lightSphere.GetNormal(I); // check objIDX to 2 from 0
+		if (objIdx == 0) N = lightSphere.GetNormal(I); // check objIDX to 2 from 0
 		if (objIdx == 1) N = sphere.GetNormal(I);
-		//else if (objIdx == 2) N = sphere2.GetNormal(I);
+		else if (objIdx == 2) N = sphere2.GetNormal(I);
 		else if (objIdx == 3) N = cube.GetNormal(I);
+		else if (objIdx == 4) N = cube2.GetNormal(I);
 		else if (objIdx >= 10) N = trianglePool[objIdx - 10]->GetNormal();
 		//else 
 		//{
@@ -596,7 +606,7 @@ public:
 		//	N = float3( 0 );
 		//	N[(objIdx - 4) / 2] = 1 - 2 * (float)(objIdx & 1);
 		//}
-		if (dot( N, wo ) > 0) N = -N; // hit backside / inside
+		if (dot(N, wo) > 0) { N = -N; hit_back = true; } // hit backside / inside
 		return N;
 	}
 	__declspec(align(64)) // start a new cacheline here
@@ -606,12 +616,15 @@ public:
 	Light lights[1];
 	Sphere sphere;
 	Sphere lightSphere;
-	//Sphere sphere2;
+	Sphere sphere2;
 	Cube cube;
+	Cube cube2;
 	//Plane plane[6];
 	static inline vector<Triangle*> trianglePool;
+	static inline vector<Sphere*> spherePool;
 	static inline map<string, Material> materialMap;
-	map<Medium, map<Medium, float>> refractiveIndices;
+	map<Medium, float> refractiveIndex;
+	map<Medium, map<Medium, float>> refractiveTransmissions;
 	int numLightSouces=1; // should be initilize better in the future
 };
 

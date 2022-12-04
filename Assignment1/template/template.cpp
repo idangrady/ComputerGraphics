@@ -70,7 +70,11 @@ void MouseScrollCallback(GLFWwindow* window, double x, double y)
 }
 void MousePosCallback(GLFWwindow* window, double x, double y)
 {
-	if (app) app->MouseMove((int)x, (int)y);
+	if (app) 
+	{
+		app->MouseMove((int)x, (int)y);
+		glfwSetCursorPos(window, SCRWIDTH / 2, SCRHEIGHT / 2);
+	} 
 }
 void ErrorCallback(int error, const char* description)
 {
@@ -106,6 +110,7 @@ void main()
 	glfwSetMouseButtonCallback(window, MouseButtonCallback);
 	glfwSetScrollCallback(window, MouseScrollCallback);
 	glfwSetCursorPosCallback(window, MousePosCallback);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	glfwSetCharCallback(window, CharEventCallback);
 	// initialize GLAD
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) FatalError("gladLoadGLLoader failed.");

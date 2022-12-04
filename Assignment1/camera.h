@@ -14,11 +14,10 @@ public:
 	Camera()
 	{
 
-		double vfov = 45;
+		double vfov = 90;
 		float theta = degrees_to_radians(vfov);
-		float h = tan(theta / 2);
-		float viewHeight = 2.0 * h;
-		float viewWidth = aspect * viewHeight;
+		float h = tan(theta / 2.0f);
+		float viewWidth = aspect * h;
 
 
 
@@ -40,8 +39,8 @@ public:
 	void rotate(int2 mouse_movement, float speed) {
 		yaw += mouse_movement.x * speed;
 		pitch += mouse_movement.y * speed;
-		while (yaw > PI) yaw -= PI;
-		while (yaw < -PI) yaw += PI;
+		while (yaw > PI) yaw -= 2 *PI;
+		while (yaw < -PI) yaw += 2 * PI;
 		const float min_pitch = -(PI / 2) + FLT_MIN;
 		const float max_pitch = (PI / 2) - FLT_MIN;
 		pitch = clamp(pitch, min_pitch, max_pitch);
@@ -78,6 +77,11 @@ public:
 		const float v = (float)y * (1.0f / SCRHEIGHT);
 		const float3 P = topLeft + u * (topRight - topLeft) + v * (bottomLeft - topLeft);
 		return Ray( camPos, normalize( P - camPos ) );
+	}
+	Ray GetRandomPrimaryRay(const int x, const int y) 
+	{
+		float x_ = (float)x + (2 * RandomFloat() - 1) + 0.5;					// + 0.5 to bring it to the middle of the pixel of the x axis
+		float y_ = (float)y + (2 * RandomFloat() - 1) + 0.5;					// + 0.5 to bring it to the middle of the pixel of the y axis
 	}
 
 	Ray GetPrimaryRayRandomized(const float x, const float  y)								// I am still wondering whether to leave it like
