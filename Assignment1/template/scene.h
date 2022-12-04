@@ -1,6 +1,7 @@
 #pragma once
 #include <map>
 #include <random>
+#include <../lib/stb_image.h>
 
 // -----------------------------------------------------------
 // scene.h
@@ -385,6 +386,13 @@ class Scene
 public:
 	Scene()
 	{
+		// Skybox
+		skybox = stbi_load("assets/clarens_midday_4k.png", &width, &height, &nrChannels, 0);
+		if (skybox == NULL) {
+			cout << stbi_failure_reason() << endl;
+			throw exception("Failed to load Skybox.");
+		}
+
 		lights[0] = Light(float3(0, 1.5, 0.5), 24);
 		// Precalc refractive mappings
 		refractiveIndex[Medium::Air] = 1.0;
@@ -480,6 +488,23 @@ public:
 		float tm = 1 - sqrf( fmodf( animTime, 2.0f ) - 1 );
 		sphere.pos = float3( -1.4f, -0.5f + tm, 2 );
 	}
+
+	float3 getSkyBox(float3 dir) const {
+		float phi = atan2f(dir.x, dir.z);
+		float theta = atan2f(hypotf(dir.x, dir.z), dir.y);
+		if (phi < 0) phi += 2.0f * PI;
+		if (theta < 0) throw exception("Negative theta?");
+		float x = phi / (2.0f * PI);
+		float y = theta / PI;
+		int x_ = (int)(x * width);
+		int y_ = (int)(y * height);
+		unsigned char* pixel = skybox + (y_ * width + x_) * nrChannels;
+		unsigned char r = pixel[0];
+		unsigned char g = pixel[1];
+		unsigned char b = pixel[2];
+		return float3(r / 255.f, g / 255.f, b / 255.f);
+	}
+
 	float3 GetLightPos() const
 	{
 		// light point position is the middle of the swinging quad
@@ -623,6 +648,8 @@ public:
 	static inline vector<Triangle*> trianglePool;
 	static inline vector<Sphere*> spherePool;
 	static inline map<string, Material> materialMap;
+	unsigned char* skybox;
+	int width, height, nrChannels;
 	map<Medium, float> refractiveIndex;
 	map<Medium, map<Medium, float>> refractiveTransmissions;
 	int numLightSouces=1; // should be initilize better in the future
