@@ -1,6 +1,5 @@
 #pragma once
 #define STATIC 0
-#define KAJIYA
 
 namespace Tmpl8
 {
@@ -29,6 +28,8 @@ namespace Tmpl8
 		// data members
 		float4* accumulator;
 		float frame;
+
+		bool sendWhitted = true;
 
 		uint8_t num_antiAlias = 1;
 
