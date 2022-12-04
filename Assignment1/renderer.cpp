@@ -23,9 +23,8 @@ void Renderer::Init()
 // -----------------------------------------------------------
 float3 Renderer::Trace(Ray& ray)
 {
-
 	scene.FindNearest(ray);
-	if (ray.objIdx == -1) return float3(0.5f, 0.5f, 0.5f); // or a fancy sky color
+	if (ray.objIdx == -1) return float3(0.0f, 0.0f, 0.02f); // or a fancy sky color
 
 	float3 I = ray.O + ray.t * ray.D;
 	bool hit_back = false;
@@ -34,7 +33,6 @@ float3 Renderer::Trace(Ray& ray)
 
 	if (sendWhitted) { return Whitted(I, N, ray, m, hit_back); }
 	else return RE(I, N, ray, m, hit_back);
-
 }
 
 // -----------------------------------------------------------
@@ -82,7 +80,6 @@ void Renderer::Tick(float deltaTime)
 			screen->pixels[dest + x] =
 			RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
 		}
-	
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
@@ -109,9 +106,7 @@ void Tmpl8::Renderer::KeyUp(int key)
 	if (key == 0x43) mov -= float3(0, -1, 0); // C
 	if (key == 0x45) fovc -= float3(-1,0,0); // E
 	if (key == 0x51) fovc -= float3(1, 0, 0); // Q
-
 }
-
 void Tmpl8::Renderer::KeyDown(int key)
 {
 	if (key == 0x57) mov += float3(0, 0, 1);  // W
@@ -137,7 +132,7 @@ float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool 
 	float d = 1.0f - s;
 
 	//Ray secondary_ray = ray.reflect(I, N, ray.depthidx);
-	float3 dirtolight = scene.lights[0].position - I;
+	float3 dirtolight = scene.spot_lights[0].position - I;
 	float distance_to_light = length(dirtolight);
 	dirtolight /= distance_to_light;
 	float3 offset_O = I + (0.0002f * dirtolight);
@@ -209,9 +204,7 @@ float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m, bool hit_b
 	float s = m.specularity;
 	float d = 1.0f - s;
 	// path tracing 
-	if (m.isLight) {
-		//hit light
-		return m.albedo; // I think this should be normlized other wise it will cause some issue 
+	if (ray.objIdx ==6) { return float3(1, 1, 1)* scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
 	}
 	if (m.mat_medium == Medium::Glass) {
 		float refr, n1, n2;
