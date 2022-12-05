@@ -25,16 +25,17 @@ float3 Renderer::Trace(Ray& ray)
 {
 
 	scene.FindNearest(ray);
+	uint id = ray.I.instPrim >> 20;
 	//if (ray.objIdx == -1) return float3(0.5f, 0.5f, 0.5f); // or a fancy sky color
-	if (ray.objIdx == -1) return scene.getSkyBox(ray.D); // or a fancy sky color
+	if (id == 0) return scene.getSkyBox(ray.D); // fancy sky color
 
-	float3 I = ray.O + ray.t * ray.D;
+	float3 I = ray.O + ray.I.t * ray.D;
 	bool hit_back = false;
-	float3 N = scene.GetNormal(ray.objIdx, I, ray.D, hit_back);
-	Material& m = scene.getMaterial(ray.objIdx);
+	float3 N = scene.GetNormal(ray.I, I, ray.D, hit_back);
+	Material& m = scene.getMaterial(ray.I.instPrim);
 
-	if (sendWhitted) { return Whitted(I, N, ray, m, hit_back); }
-	else return RE(I, N, ray, m, hit_back);
+	if (sendWhitted) { return Whitted(N, ray, m, hit_back); }
+	else return RE(N, ray, m, hit_back);
 
 }
 
@@ -56,7 +57,7 @@ void Renderer::Tick(float deltaTime)
 	Timer t;
 	// lines are executed as OpenMP parallel tasks (disabled in DEBUG)
 	frame += 1.f;
-#pragma omp parallel for schedule(dynamic)
+//#pragma omp parallel for schedule(dynamic)
 	for (int y = 0; y < SCRHEIGHT; y++)
 	{
 		if (y != 0) {
@@ -130,18 +131,19 @@ void Tmpl8::Renderer::KeyUp(int key) {}
 void Tmpl8::Renderer::KeyDown(int key) {}
 #endif
 
-float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool hit_back)
+float3 Tmpl8::Renderer::Whitted(float3 N, Ray& ray, Material& m, bool hit_back)
 {
 	float3 color = (0, 0, 0);
+	float3 I_loc = ray.O + ray.I.t * ray.D;
 
 	float s = m.specularity;
 	float d = 1.0f - s;
 
 	//Ray secondary_ray = ray.reflect(I, N, ray.depthidx);
-	float3 dirtolight = scene.lights[0].position - I;
+	float3 dirtolight = scene.lights[0].position - I_loc;
 	float distance_to_light = length(dirtolight);
 	dirtolight /= distance_to_light;
-	float3 offset_O = I + (0.0002f * dirtolight);
+	float3 offset_O = I_loc + (0.0002f * dirtolight);
 	Ray occlusion_ray = Ray(offset_O, dirtolight, distance_to_light - 0.0002f);
 	//color += scene.ambient * m.albedo;
 	if (m.mat_medium == Medium::Glass) {
@@ -158,7 +160,7 @@ float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool 
 		}
 		float R;
 		float T;
-		float traveled = ray.t;
+		float traveled = ray.I.t;
 		float3 interim_color = float3(0, 0, 0);
 		float cos_theta_i = dot(N, -ray.D);
 		float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
@@ -173,7 +175,7 @@ float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool 
 			// Double check for correctness later
 			float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
 			t_dir /= length(t_dir);
-			interim_color += T * Trace(Ray(I + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx + 1));
+			interim_color += T * Trace(Ray(I_loc + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx + 1));
 		}
 		else
 		{
@@ -181,7 +183,7 @@ float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool 
 			T = 0.0f;
 		}
 		if (R > 0.0f && ray.depthidx <= max_depth) {
-			interim_color += R * Trace(ray.Reflect(I, N));
+			interim_color += R * Trace(ray.Reflect(I_loc, N));
 		}
 
 		if (hit_back) { // If we go from glass to air, we have to absorb some of the light we found (because we traverse in reverse order!)
@@ -194,19 +196,27 @@ float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool 
 	else {
 		if (s > 0.0f && ray.depthidx <= max_depth)
 		{
-			color += s * Trace(ray.Reflect(I, N)); // If specular
+			color += s * Trace(ray.Reflect(I_loc, N)); // If specular
 		}
 		if (!scene.IsOccluded(occlusion_ray))
 		{
-			if (d > 0.0f) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
+			if (d > 0.0f) 
+			{
+				float3 obj_alb = scene.GetColor(ray.I);
+				//cout << d << endl;
+				color += d * obj_alb;
+				//color += d * scene.directIllumination(ray.I.instPrim, I_loc, N, obj_alb); // If diffuse
+				//cout << color.x << "|" << color.y << "|" << color.z << endl;
+			}
 		}
 	}
 	return color;
 }
 
 
-float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m, bool hit_back)
+float3 Tmpl8::Renderer::RE(float3 N, Ray& ray, Material& m, bool hit_back)
 {	
+	float3 I_loc = ray.O + ray.I.t * ray.D;
 	float s = m.specularity;
 	float d = 1.0f - s;
 	// path tracing 
@@ -227,7 +237,7 @@ float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m, bool hit_b
 			n2 = scene.refractiveIndex[Medium::Glass];
 		}
 		float R;
-		float traveled = ray.t;
+		float traveled = ray.I.t;
 		float3 interim_color = float3(0, 0, 0);
 		float cos_theta_i = dot(N, -ray.D);
 		float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
@@ -244,14 +254,14 @@ float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m, bool hit_b
 			if (random > R) { //Randomly refracted
 				float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
 				t_dir /= length(t_dir);
-				interim_color = Trace(Ray(I + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx + 1));
+				interim_color = Trace(Ray(I_loc + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx + 1));
 			}
 			else if(ray.depthidx <= max_depth) { // Randomly reflected
-				interim_color = Trace(ray.Reflect(I, N));
+				interim_color = Trace(ray.Reflect(I_loc, N));
 			}
 		}
 		else if(ray.depthidx <= max_depth) {
-			interim_color = Trace(ray.Reflect(I, N));
+			interim_color = Trace(ray.Reflect(I_loc, N));
 		}
 		if (hit_back) { // If we go from glass to air, we have to absorb some of the light we found (because we traverse in reverse order!)
 			interim_color.x *= exp(-m.absorption.x * traveled);
@@ -265,12 +275,12 @@ float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m, bool hit_b
 		float random = RandomFloat();
 		if (random > d) // Randomly reflect
 		{ // Mirror
-			return Trace(ray.Reflect(I, N));
+			return Trace(ray.Reflect(I_loc, N));
 		}
 		else if(ray.depthidx <= max_depth){ // Randomly diffuse
 			float3 BRDF_m = m.albedo; // I deleted the PI because it was cancalled in the return * PI 
 			float3 random_dir = scene.GetDiffuseRefelectDir(N);
-			Ray newRay(I + 0.0002f * random_dir, random_dir, 1e34f, ray.depthidx + 1); //+ 0.0002f * random_dir
+			Ray newRay(I_loc + 0.0002f * random_dir, random_dir, 1e34f, ray.depthidx + 1); //+ 0.0002f * random_dir
 			float3 EI = Trace(newRay) * dot(N, random_dir);
 			return 2.0f * BRDF_m * EI;
 		}
