@@ -28,7 +28,7 @@ namespace Tmpl8
 		// data members
 		float4* accumulator;
 		float frame;
-
+		float mult = 1.0f;
 		bool sendWhitted = true;
 
 		uint8_t num_antiAlias = 1;

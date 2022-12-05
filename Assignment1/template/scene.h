@@ -372,7 +372,7 @@ public:
 		invM = transform.FastInvertedTransformNoScale();
 	};
 	void Intersect(Ray& ray) {
-		for (uint i = 0; i < triCount; i++) {
+		for (uint i = 0; i < tri.size(); i++) {
 			const float3 edge1 = tri[i].vertex1 - tri[i].vertex0;
 			const float3 edge2 = tri[i].vertex2 - tri[i].vertex0;
 			const float3 h = cross(ray.D, edge2);
@@ -416,6 +416,7 @@ public:
 		}
 	}
 	float3 GetNormal(Intersection& I) {
+		//cout << "Checking checkerboard normals??" << endl;
 		const uint mask = ~(~0 << 20); // Mask for last 20 bits
 		uint id = I.instPrim & mask;
 		if (normalMapLoaded) {
@@ -429,72 +430,96 @@ public:
 			return float3(x / 255.f, y / 255.f, z / 255.f);
 		}
 		else {
+			//cout << triEx[id].N0.x << "|" << triEx[id].N0.y << "|" << triEx[id].N0.z << endl;
+			//cout << id << endl;
 			float3 N = I.u * triEx[id].N1 + I.v * triEx[id].N2 + (1.0f - (I.u + I.v)) * triEx[id].N0;
+			//cout << "NORMAL?: " << N.x << "|" << N.y << "|" << N.z << endl;
 			return normalize(N);
 		}
+		//float3 N =  -normalize(cross((tri[id].vertex1 - tri[id].vertex0), (tri[id].vertex2 - tri[id].vertex0)));
+		//float3 N = float3(0, 1, 0);
+		//cout << "NORMAL?: " << N.x << "|" << N.y << "|" << N.z << endl;
+		//return N;
 	}
 	static RTXMesh* makeMesh(aiMesh* mesh, const aiScene* scene, string const& path, uint objId) {
 		RTXMesh* m = new RTXMesh(objId);
-		m->tri = new Tri[mesh->mNumFaces];
-		m->triEx = new TriEx[mesh->mNumFaces];
+		m->tri.reserve(mesh->mNumFaces);// = new Tri[mesh->mNumFaces];
+		m->triEx.reserve(mesh->mNumFaces);// = new TriEx[mesh->mNumFaces];
 		string directory = path.substr(0, path.find_last_of('/'));
 
 		// We load things face by face instead of vertex by vertex. ray.I.tracers like accessing triangles compactly, I think.
 		// Potentially can be changed into a list of vertices and a list of face indices, to save memory.
 		for (uint i = 0; i < mesh->mNumFaces; i++) {
+			Tri tri_i = Tri();
+			TriEx triEx_i = TriEx();
 			aiFace face = mesh->mFaces[i];
 			// vertex0
-			m->tri[i].vertex0.x = mesh->mVertices[face.mIndices[0]].x;
-			m->tri[i].vertex0.y = mesh->mVertices[face.mIndices[0]].y;
-			m->tri[i].vertex0.z = mesh->mVertices[face.mIndices[0]].z;
+			tri_i.vertex0.x = mesh->mVertices[face.mIndices[0]].x;
+			tri_i.vertex0.y = mesh->mVertices[face.mIndices[0]].y;
+			tri_i.vertex0.z = mesh->mVertices[face.mIndices[0]].z;
 			// vertex1
-			m->tri[i].vertex1.x = mesh->mVertices[face.mIndices[1]].x;
-			m->tri[i].vertex1.y = mesh->mVertices[face.mIndices[1]].y;
-			m->tri[i].vertex1.z = mesh->mVertices[face.mIndices[1]].z;
+			tri_i.vertex1.x = mesh->mVertices[face.mIndices[1]].x;
+			tri_i.vertex1.y = mesh->mVertices[face.mIndices[1]].y;
+			tri_i.vertex1.z = mesh->mVertices[face.mIndices[1]].z;
 			// vertex2
-			m->tri[i].vertex2.x = mesh->mVertices[face.mIndices[2]].x;
-			m->tri[i].vertex2.y = mesh->mVertices[face.mIndices[2]].y;
-			m->tri[i].vertex2.z = mesh->mVertices[face.mIndices[2]].z;
+			tri_i.vertex2.x = mesh->mVertices[face.mIndices[2]].x;
+			tri_i.vertex2.y = mesh->mVertices[face.mIndices[2]].y;
+			tri_i.vertex2.z = mesh->mVertices[face.mIndices[2]].z;
 			// Calculate centroid
-			m->tri[i].centroid = (m->tri[i].vertex0 + m->tri[i].vertex1 + m->tri[i].vertex2) / 3.0f;
+			tri_i.centroid = (tri_i.vertex0 + tri_i.vertex1 + tri_i.vertex2) / 3.0f;
 
 			// Load the normals
 			if (mesh->HasNormals()) {
-				// Vertex 0 Normal
-				m->triEx[i].N0.x = mesh->mNormals[face.mIndices[0]].x;
-				m->triEx[i].N0.y = mesh->mNormals[face.mIndices[0]].y;
-				m->triEx[i].N0.z = mesh->mNormals[face.mIndices[0]].z;
-				// Vertex 1 Normal
-				m->triEx[i].N1.x = mesh->mNormals[face.mIndices[1]].x;
-				m->triEx[i].N1.y = mesh->mNormals[face.mIndices[1]].y;
-				m->triEx[i].N1.z = mesh->mNormals[face.mIndices[1]].z;
-				// Vertex 2 Normal
-				m->triEx[i].N2.x = mesh->mNormals[face.mIndices[2]].x;
-				m->triEx[i].N2.y = mesh->mNormals[face.mIndices[2]].y;
-				m->triEx[i].N2.z = mesh->mNormals[face.mIndices[2]].z;
-				// Normalize them, because for some reason they are not.
-				m->triEx[i].N0 = normalize(m->triEx[i].N0);
-				m->triEx[i].N1 = normalize(m->triEx[i].N1);
-				m->triEx[i].N2 = normalize(m->triEx[i].N2);
+				//// Vertex 0 Normal
+				//triEx_i.N0.x = mesh->mNormals[face.mIndices[0]].x;
+				//triEx_i.N0.y = mesh->mNormals[face.mIndices[0]].y;
+				//triEx_i.N0.z = mesh->mNormals[face.mIndices[0]].z;
+				//// Vertex 1 Normal
+				//triEx_i.N1.x = mesh->mNormals[face.mIndices[1]].x;
+				//triEx_i.N1.y = mesh->mNormals[face.mIndices[1]].y;
+				//triEx_i.N1.z = mesh->mNormals[face.mIndices[1]].z;
+				//// Vertex 2 Normal
+				//triEx_i.N2.x = mesh->mNormals[face.mIndices[2]].x;
+				//triEx_i.N2.y = mesh->mNormals[face.mIndices[2]].y;
+				//triEx_i.N2.z = mesh->mNormals[face.mIndices[2]].z;
+				//// Normalize them, because for some reason they are not.
+				//triEx_i.N0 = normalize(triEx_i.N0);
+				//triEx_i.N1 = normalize(triEx_i.N1);
+				//triEx_i.N2 = normalize(triEx_i.N2);
+				float3 N = normalize(cross((tri_i.vertex1 - tri_i.vertex0), (tri_i.vertex2 - tri_i.vertex0)));
+
+				triEx_i.N0 = N;
+				triEx_i.N1 = N;
+				triEx_i.N2 = N;
+			}
+			else {
+				float3 N = normalize(cross((tri_i.vertex1 - tri_i.vertex0), (tri_i.vertex2 - tri_i.vertex0)));
+				
+				triEx_i.N0 = N;
+				triEx_i.N1 = N;
+				triEx_i.N2 = N;
 			}
 
 			// Load the texture coordinates
 			if (mesh->mTextureCoords[0]) {
 				// Texture coordinates for vertex0. I think.
-				m->triEx[i].uv0.x = mesh->mTextureCoords[0][face.mIndices[0]].x;
-				m->triEx[i].uv0.y = mesh->mTextureCoords[0][face.mIndices[0]].y;
+				triEx_i.uv0.x = mesh->mTextureCoords[0][face.mIndices[0]].x;
+				triEx_i.uv0.y = mesh->mTextureCoords[0][face.mIndices[0]].y;
 				// Texture coordinates for vertex1. I hope.
-				m->triEx[i].uv1.x = mesh->mTextureCoords[0][face.mIndices[1]].x;
-				m->triEx[i].uv1.y = mesh->mTextureCoords[0][face.mIndices[1]].y;
+				triEx_i.uv1.x = mesh->mTextureCoords[0][face.mIndices[1]].x;
+				triEx_i.uv1.y = mesh->mTextureCoords[0][face.mIndices[1]].y;
 				// Texture coordinates for vertex2. I pray.
-				m->triEx[i].uv2.x = mesh->mTextureCoords[0][face.mIndices[2]].x;
-				m->triEx[i].uv2.y = mesh->mTextureCoords[0][face.mIndices[2]].y;
+				triEx_i.uv2.x = mesh->mTextureCoords[0][face.mIndices[2]].x;
+				triEx_i.uv2.y = mesh->mTextureCoords[0][face.mIndices[2]].y;
 			}
 			else {
 				m->material.albedo = float3(1, 0, 0); //default red color
 			}
+			m->tri.push_back(tri_i);
+			m->triEx.push_back(triEx_i);
 		}
-		m->triCount = mesh->mNumFaces;
+		//m->triCount = mesh->mNumFaces;
+		m->triCount = m->tri.size();
 		// Time to get the textures (and normal map)
 		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
 		// Diffuse (aka just texture?)
@@ -508,7 +533,6 @@ public:
 		}
 		// Bump map!
 		if (material->GetTextureCount(aiTextureType_HEIGHT) > 0) {
-			cout << "Loaded normal map??" << endl;
 			aiString str;
 			material->GetTexture(aiTextureType_HEIGHT, 0, &str);
 			string filename = string(str.C_Str());
@@ -518,8 +542,8 @@ public:
 		}
 		return m;
 	}
-	Tri* tri;
-	TriEx* triEx;
+	vector<Tri> tri;
+	vector<TriEx> triEx;
 	int triCount;
 	uint objIdx;
 	mat4 M, invM;
@@ -590,33 +614,10 @@ public:
 	{
 		// Load cat
 		//loadModel("assets/wolf/Wolf.obj");
-		loadModel("assets/chessboard/chessboard.obj");
-		cout << meshPool.size() << endl;
-		if(meshPool[0]->textureLoaded) cout << meshPool[0]->texture->width << "||" << meshPool[0]->texture->height << endl;
-		for (int i = 0; i < meshPool[0]->triCount; i++) {
-			float3 N0 = meshPool[0]->triEx[i].N0;
-			float3 N1 = meshPool[0]->triEx[i].N1;
-			float3 N2 = meshPool[0]->triEx[i].N2;
-			cout << i << ":N0\t" << N0.x << "||" << N0.y << "||" << N0.z << endl;
-			cout << i << ":N1\t" << N1.x << "||" << N1.y << "||" << N1.z << endl;
-			cout << i << ":N2\t" << N2.x << "||" << N2.y << "||" << N2.z << endl;
-		}
-		/*for (int i = 0; i < meshPool[0]->triCount; i++) {
-			Intersection I;
-			I.instPrim = i;
-			I.u = 1.f / 3.f;
-			I.v = 1.f / 3.f;
-			float3 N = meshPool[0]->GetNormal(I);
-			cout << i << ":\t" << N.x << "|" << N.y << "|" << N.z << endl;
-			cout << "Length:\t" << length(N) << endl;
-		}*/
-		cout << "Texture:" << endl;
-		bitset<32> black(meshPool[0]->texture->pixels[0]);
-		bitset<32> white(meshPool[0]->texture->pixels[255]);
-		cout << "Black: " << black << endl;
-		cout << "White: " << white << endl;
-		cout << "Triangles: " << meshPool[0]->triCount << endl;
-
+		//loadModel("assets/chessboard/chessboard.obj");
+		loadModel("assets/wolf/Wolf.obj");
+		//meshPool[0]->material.specularity = 0.2f;
+		meshPool[0]->material.mat_medium = Medium::Glass;
 
 		// Skybox
 		unsigned char* data = stbi_load("assets/clarens_midday_4k.png", &width, &height, &nrChannels, 0);
@@ -631,7 +632,7 @@ public:
 			throw exception("Failed to load Skybox.");
 		}
 
-		lights[0] = Light(float3(0, 80, 0.5), 240);
+		lights[0] = Light(float3(0, 80, 0.5), 2500);
 		// Precalc refractive mappings
 		refractiveIndex[Medium::Air] = 1.0;
 		refractiveIndex[Medium::Glass] = 1.52;
@@ -763,11 +764,12 @@ public:
 		if (objId == 0) throw exception("There's no material for nothing"); // or perhaps we should just crash
 		//if (objIdx == 0) return quad.material;
 		if (objId == 1) return lightSphere.material; //Jax:  chancged idx to 2
-		else if (objId == 2) return sphere.material;
-		else if (objId == 3) return sphere2.material;
-		else if (objId == 4) return cube.material;
-		else if (objId == 5) return cube2.material;
-		else if (objId >= 10) return trianglePool[objId - 10]->material;
+		if (objId > 1) return meshPool[objId - 2]->material;
+		//else if (objId == 2) return sphere.material;
+		//else if (objId == 3) return sphere2.material;
+		//else if (objId == 4) return cube.material;
+		//else if (objId == 5) return cube2.material;
+		//else if (objId >= 10) return trianglePool[objId - 10]->material;
 		throw exception("ID not known");
 	}
 
@@ -868,7 +870,7 @@ public:
 		// we get the normal after finding the nearest intersection:
 		// this way we prevent calculating it multiple times.
 		uint objId = Inters.instPrim >> 20;
-		if (objId == 0) return float3( 0 ); // or perhaps we should just crash
+		if (objId == 0) throw exception("NOT ALLOWED");//return float3( 0 ); // or perhaps we should just crash
 		float3 N;
 		//if (objIdx == 0) N = quad.GetNormal(I);
 		if (objId == 1) N = lightSphere.GetNormal(I); // check objIDX to 2 from 0
@@ -877,7 +879,7 @@ public:
 		//else if (objId == 4) N = cube.GetNormal(I);
 		//else if (objId == 5) N = cube2.GetNormal(I);
 		//else if (objId >= 10) N = trianglePool[objId - 10]->GetNormal();
-		else if (objId > 1) meshPool[objId - 2]->GetNormal(Inters);
+		else if (objId > 1) N = meshPool[objId - 2]->GetNormal(Inters);
 		//else 
 		//{
 		//	// faster to handle the 6 planes without a call to GetNormal
@@ -900,7 +902,7 @@ public:
 	// Mesh loading using tutorial from learnopengl.com
 	void loadModel(const char* file) {
 		Assimp::Importer importer;
-		const aiScene* scene = importer.ReadFile(file, aiProcess_Triangulate | aiProcess_FlipUVs);
+		const aiScene* scene = importer.ReadFile(file, aiProcess_Triangulate);
 		if (!scene || scene->mFlags * AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
 			cout << "Error loading Mesh: " << importer.GetErrorString() << endl;
 			return;
