@@ -51,13 +51,13 @@ void Renderer::Tick(float deltaTime)
 #endif
 	//Camera
 	const float speed = 0.2f;
-	camera.move(mov, speed);
+	camera.move(mult * mov, speed);
 	camera.fovUpdate(fovc,speed);
 	// pixel loop
 	Timer t;
 	// lines are executed as OpenMP parallel tasks (disabled in DEBUG)
 	frame += 1.f;
-//#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic)
 	for (int y = 0; y < SCRHEIGHT; y++)
 	{
 		if (y != 0) {
@@ -103,6 +103,7 @@ void Tmpl8::Renderer::MouseMove(int x, int y)
 
 void Tmpl8::Renderer::KeyUp(int key)
 {
+	if (key == 0x58) mult = 1.0f;
 	if (key == 0x57) mov -= float3(0, 0, 1);  // W
 	if (key == 0x41) mov -= float3(-1, 0, 0);  //A
 	if (key == 0x53) mov -= float3(0, 0, -1); //S
@@ -116,6 +117,7 @@ void Tmpl8::Renderer::KeyUp(int key)
 
 void Tmpl8::Renderer::KeyDown(int key)
 {
+	if (key == 0x58) mult = 100.0f;
 	if (key == 0x57) mov += float3(0, 0, 1);  // W
 	if (key == 0x41) mov += float3(-1, 0, 0);  //A
 	if (key == 0x53) mov += float3(0, 0, -1); //S
@@ -204,8 +206,9 @@ float3 Tmpl8::Renderer::Whitted(float3 N, Ray& ray, Material& m, bool hit_back)
 			{
 				float3 obj_alb = scene.GetColor(ray.I);
 				//cout << d << endl;
-				color += d * obj_alb;
-				//color += d * scene.directIllumination(ray.I.instPrim, I_loc, N, obj_alb); // If diffuse
+				//cout << "N??: " << N.x << "|" << N.y << "|"  << N.z << endl;
+				//color += 0.5f * (N + 1.0f);
+				color += d * scene.directIllumination(ray.I.instPrim, I_loc, N, obj_alb); // If diffuse
 				//cout << color.x << "|" << color.y << "|" << color.z << endl;
 			}
 		}
