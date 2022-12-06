@@ -447,21 +447,32 @@ public:
 	};
 
 	void Translate(float3 d) {
-		for (Tri triangle : tri) {
-			triangle.vertex0 += d;
-			triangle.vertex1 += d;
-			triangle.vertex2 += d;
-			triangle.centroid += d;
+		for (int i = 0; i < tri.size(); i++) {
+			tri[i].vertex0 += d;
+			tri[i].vertex1 += d;
+			tri[i].vertex2 += d;
+			tri[i].centroid += d;
 		}
 	}
 
 	void Scale(float3 d) {
-		for (Tri triangle : tri) {
-			triangle.vertex0 *= d;
-			triangle.vertex1 *= d;
-			triangle.vertex2 *= d;
-			triangle.centroid *= d;
+		for (int i = 0; i < tri.size(); i++) {
+			tri[i].vertex0 *= d;
+			tri[i].vertex1 *= d;
+			tri[i].vertex2 *= d;
+			tri[i].centroid *= d;
 		}
+	}
+
+	void MoveToPlane(float height) {
+		float lowest = FLT_MAX;
+		for (Tri triangle : tri) {
+			if (triangle.vertex0.y < lowest) lowest = triangle.vertex0.y;
+			if (triangle.vertex1.y < lowest) lowest = triangle.vertex1.y;
+			if (triangle.vertex2.y < lowest) lowest = triangle.vertex2.y;
+		}
+		float diff = height - lowest;
+		Translate(float3(0, diff + 0.001f, 0));
 	}
 
 	void Intersect(Ray& ray) {
@@ -638,7 +649,11 @@ public:
 	int triCount;
 	uint objIdx;
 	mat4 M, invM;
-	Material material;
+	Material material = {
+		float3(1, 0, 0), //albedo
+		0.2, //specularity
+		Medium::Undefined, //medium
+	};
 	Surface* texture;
 	bool textureLoaded = false;
 	Surface* normalMap;
@@ -740,12 +755,13 @@ public:
 		loadModel("assets/wolf/Wolf.obj");
 		//meshPool[0]->material.specularity = 0.2f;
 		meshPool[1]->material.mat_medium = Medium::Glass;
-		meshPool[1]->Translate(float3(0, 32, 0));
-		meshPool[1]->Scale(float3(0.5f, 0.5f, 0.5f));
+		meshPool[1]->Scale(float3(0.8f, 0.8f, 0.8f));
+		meshPool[1]->MoveToPlane(32.f);
+		meshPool[1]->material.absorption = float3(0.f, 1.0f, 1.0f);
 
 		// Reserve object IDs for the lights
-		area_lights[0] = areaLight(6000, areaID, float3(32, 256, 32), float3(-32, 256, 32), float3(32, 256, -32), float3(-32, 256, -32), float3(32, 256, -32), float3(-32, 256, 32));
-		spot_lights[0] = pointLight(2400, float3(0, 256, 0.5), spotID);
+		area_lights[0] = areaLight(100, areaID, float3(32, 256, 32), float3(-32, 256, 32), float3(32, 256, -32), float3(-32, 256, -32), float3(32, 256, -32), float3(-32, 256, 32));
+		spot_lights[0] = pointLight(100, float3(0, 256, 0.5), spotID);
 #else
 		// we store all primitives in one continuous buffer
 		Sphere* sphere = new Sphere(0, float3(0), 0.5f);					// 0: bouncing ball   0.5f
@@ -815,8 +831,8 @@ public:
 		trianglePool.push_back(floor_1);
 
 		// Reserve object IDs for the lights
-		area_lights[0] = areaLight(24, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5));
-		spot_lights[0] = pointLight(24, float3(0, 1.5, 0.5), spotID);
+		area_lights[0] = areaLight(10, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5));
+		spot_lights[0] = pointLight(10, float3(0, 1.5, 0.5), spotID);
 #endif
 
 
