@@ -455,6 +455,15 @@ public:
 		}
 	}
 
+	void Scale(float3 d) {
+		for (Tri triangle : tri) {
+			triangle.vertex0 *= d;
+			triangle.vertex1 *= d;
+			triangle.vertex2 *= d;
+			triangle.centroid *= d;
+		}
+	}
+
 	void Intersect(Ray& ray) {
 		for (uint i = 0; i < tri.size(); i++) {
 			const float3 edge1 = tri[i].vertex1 - tri[i].vertex0;
@@ -728,9 +737,11 @@ public:
 		// Load cat
 		//loadModel("assets/wolf/Wolf.obj");
 		loadModel("assets/chessboard/chessboard.obj");
-		//loadModel("assets/wolf/Wolf.obj");
+		loadModel("assets/wolf/Wolf.obj");
 		//meshPool[0]->material.specularity = 0.2f;
-		//meshPool[0]->material.mat_medium = Medium::Glass;
+		meshPool[1]->material.mat_medium = Medium::Glass;
+		meshPool[1]->Translate(float3(0, 32, 0));
+		meshPool[1]->Scale(float3(0.5f, 0.5f, 0.5f));
 
 		// Reserve object IDs for the lights
 		area_lights[0] = areaLight(2400, areaID, float3(32, 64, 32), float3(-32, 64, 32), float3(32, 64, -32), float3(-32, 64, -32), float3(32, 64, -32), float3(-32, 64, 32));
