@@ -436,11 +436,11 @@ __declspec(align(64)) struct TriEx {
 // Mesh class, partially yoinked from Jacco BVH tutorial
 //
 // -----------------------------------------------------------
-class RTXMesh
+class Mesh
 {
 public:
-	RTXMesh() = default;
-	RTXMesh(uint objId, mat4 transform = mat4::Identity()) {
+	Mesh() = default;
+	Mesh(uint objId, mat4 transform = mat4::Identity()) {
 		objIdx = objId;
 		M = transform;
 		invM = transform.FastInvertedTransformNoScale();
@@ -542,8 +542,8 @@ public:
 		//cout << "NORMAL?: " << N.x << "|" << N.y << "|" << N.z << endl;
 		//return N;
 	}
-	static RTXMesh* makeMesh(aiMesh* mesh, const aiScene* scene, string const& path, uint objId) {
-		RTXMesh* m = new RTXMesh(objId);
+	static Mesh* makeMesh(aiMesh* mesh, const aiScene* scene, string const& path, uint objId) {
+		Mesh* m = new Mesh(objId);
 		m->tri.reserve(mesh->mNumFaces);// = new Tri[mesh->mNumFaces];
 		m->triEx.reserve(mesh->mNumFaces);// = new TriEx[mesh->mNumFaces];
 		string directory = path.substr(0, path.find_last_of('/'));
@@ -752,6 +752,7 @@ public:
 		// Load cat
 		loadModel("assets/chessboard/chessboard.obj");
 		loadModel("assets/wolf/Wolf.obj");
+		//loadModel("assets/cat/12221_Cat_v1_l3.obj");
 		////meshPool[0]->material.specularity = 0.2f;
 		meshPool[1]->material.mat_medium = Medium::Glass;
 		meshPool[1]->Scale(float3(0.8f, 0.8f, 0.8f));
@@ -775,8 +776,8 @@ public:
 		trianglePool.push_back(wall_b1);
 
 		// Reserve object IDs for the lights
-		area_lights[0] = areaLight(100, areaID, float3(32, 180, 32), float3(-32, 180, 32), float3(32, 180, -32), float3(-32, 180, -32), float3(32, 180, -32), float3(-32, 180, 32));
-		spot_lights[0] = pointLight(10000, float3(0, 60, 0.5), spotID);
+		area_lights[0] = areaLight(50, areaID, float3(32, 180, 32), float3(-32, 180, 32), float3(32, 180, -32), float3(-32, 180, -32), float3(32, 180, -32), float3(-32, 180, 32));
+		spot_lights[0] = pointLight(100, float3(0, 60, 0.5), spotID);
 #else
 		// we store all primitives in one continuous buffer
 		Sphere* sphere = new Sphere(0, float3(0), 0.5f);					// 0: bouncing ball   0.5f
@@ -1017,7 +1018,7 @@ public:
 		for (int i = 0; i < spherePool.size(); i++)	spherePool[i]->Intersect(ray);
 		for (int i = 0; i < cubePool.size(); i++) cubePool[i]->Intersect(ray);
 		for (Triangle* tri : trianglePool) tri->Intersect(ray);
-		for (RTXMesh* mesh : meshPool) 	mesh->Intersect(ray);
+		for (Mesh* mesh : meshPool) 	mesh->Intersect(ray);
 		//if (ray.objIdx >= 10) cout << "Triangle hit: " << ray.objIdx << endl;
 	}
 	bool IsOccluded( Ray& ray ) const
@@ -1028,7 +1029,7 @@ public:
 		for (int i = 0; i < spherePool.size(); i++)	spherePool[i]->Intersect(ray);
 		for (int i = 0; i < cubePool.size(); i++) cubePool[i]->Intersect(ray);
 		for (Triangle* tri : trianglePool) tri->Intersect(ray);
-		for (RTXMesh* mesh : meshPool) 	mesh->Intersect(ray);
+		for (Mesh* mesh : meshPool) 	mesh->Intersect(ray);
 		return ray.I.t < rayLength;
 		// technically this is wasteful: 
 		// - we potentially search beyond rayLength
@@ -1098,7 +1099,7 @@ public:
 		for (int i = 0; i < node->mNumMeshes; i++) {
 			int id = meshPool.size(); //TODO: REMOVE THE START AT 2
 			aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-			meshPool.push_back(RTXMesh::makeMesh(mesh, scene, path, id));
+			meshPool.push_back(Mesh::makeMesh(mesh, scene, path, id));
 		}
 		// go through children nodes
 		for (uint i = 0; i < node->mNumChildren; i++) {
@@ -1122,7 +1123,7 @@ public:
 	static inline vector<Triangle*> trianglePool;
 	static inline vector<Sphere*> spherePool;
 	static inline vector<Cube*> cubePool;
-	static inline vector<RTXMesh*> meshPool;
+	static inline vector<Mesh*> meshPool;
 	static inline map<string, Material> materialMap;
 	unsigned char* skybox;
 	int width, height, nrChannels;

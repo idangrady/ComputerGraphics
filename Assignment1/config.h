@@ -3,5 +3,5 @@
 #define PRETTY 1
 
 bool sendWhittedCONFIG = false; 
-uint8_t num_antiAlias = 5;
-int max_depth = 20;
+uint8_t AA_COUNT = 5;
+int MAX_DEPTH = 20;
