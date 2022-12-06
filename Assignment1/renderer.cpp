@@ -17,12 +17,13 @@ void Renderer::Init()
 	POINT cursorPosition;
 	GetCursorPos(&cursorPosition);
 #if PRETTY
-	camera.move(float3(160, 150, 200), 1.0f);
-	mat4 m = mat4::LookAt(camera.camPos, float3(0, 64, 0));
+	camera.move(float3(180, 150, 180), 1.0f);
+	mat4 m = mat4::LookAt(camera.camPos, float3(0, 128, 0));
 	camera.matRotate(m);
 #else
-	camera.move(float3(-1, 0, -2), 1.0f);
-	camera.rotate(int2(-100, -100), 0.003f);
+	camera.move(float3(-3, 0, -4), 1.0f);
+	mat4 m = mat4::LookAt(camera.camPos, float3(0, -1, 0));
+	camera.matRotate(m);
 #endif
 }
 
@@ -35,6 +36,7 @@ float3 Renderer::Trace(Ray& ray)
 	uint typeId = GetObjectType(ray.I.instPrim);
 	uint id = GetObjectIndex(ray.I.instPrim);
 	//if (ray.objIdx == -1) return float3(0.5f, 0.5f, 0.5f); // or a fancy sky color
+	//if (typeId == skyBoxID) return float3(0, 0, 0); // The void
 	if (typeId == skyBoxID) return scene.getSkyBox(ray.D); // fancy sky color
 	if (id == scene.areaID) return scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
 	if (id == scene.spotID) return scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
@@ -155,6 +157,23 @@ void Tmpl8::Renderer::KeyUp(int key) {}
 void Tmpl8::Renderer::KeyDown(int key) {}
 #endif
 
+float Tmpl8::Renderer::FresnelReflection(float cos_theta_i, float n1, float n2, float refr, float3 N, float3 D)
+{
+	float sin_theta_i = length(cross(N, -D));
+	float refr_sin = (refr * sin_theta_i);
+	float cos_theta_t = sqrtf(1.0f - (refr_sin * refr_sin));
+	float first_term = ((n1 * cos_theta_i) - (n2 * cos_theta_t)) / ((n1 * cos_theta_i) + (n2 * cos_theta_t));
+	float second_term = ((n1 * cos_theta_t) - (n2 * cos_theta_i)) / ((n1 * cos_theta_t) + (n2 * cos_theta_i));
+	return 0.5f * ((first_term * first_term) + (second_term * second_term));
+}
+
+// Use Schlick to calculate if it fully reflects
+float Tmpl8::Renderer::GetSnell(float refr, float cos_theta_i)
+{
+	float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
+	return k;
+}
+
 float3 Tmpl8::Renderer::Whitted(float3 N, Ray& ray, Material& m, bool hit_back)
 {
 	float3 color = (0, 0, 0);
@@ -187,14 +206,9 @@ float3 Tmpl8::Renderer::Whitted(float3 N, Ray& ray, Material& m, bool hit_back)
 		float traveled = ray.I.t;
 		float3 interim_color = float3(0, 0, 0);
 		float cos_theta_i = dot(N, -ray.D);
-		float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
+		float k = GetSnell(refr, cos_theta_i);
 		if (k > 0.00001f) { // Inner scope cuz lots of terms. Also we use k > 0.0001f to account for stupid float inaccuracies.
-			float sin_theta_i = length(cross(N, -ray.D));
-			float refr_sin = (refr * sin_theta_i);
-			float cos_theta_t = sqrtf(1.0f - (refr_sin * refr_sin));
-			float first_term = ((n1 * cos_theta_i) - (n2 * cos_theta_t)) / ((n1 * cos_theta_i) + (n2 * cos_theta_t));
-			float second_term = ((n1 * cos_theta_t) - (n2 * cos_theta_i)) / ((n1 * cos_theta_t) + (n2 * cos_theta_i));
-			R = 0.5f * ((first_term * first_term) + (second_term * second_term));
+			R = FresnelReflection(cos_theta_i, n1, n2, refr, N, ray.D);
 			T = 1.0f - R;
 			// Double check for correctness later
 			float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
@@ -257,14 +271,9 @@ float3 Tmpl8::Renderer::RE(float3 N, Ray& ray, Material& m, bool hit_back)
 		float traveled = ray.I.t;
 		float3 interim_color = float3(0, 0, 0);
 		float cos_theta_i = dot(N, -ray.D);
-		float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
+		float k = GetSnell(refr, cos_theta_i);
 		if (k > 0.00001f) {
-			float sin_theta_i = length(cross(N, -ray.D));
-			float refr_sin = (refr * sin_theta_i);
-			float cos_theta_t = sqrtf(1.0f - (refr_sin * refr_sin));
-			float first_term = ((n1 * cos_theta_i) - (n2 * cos_theta_t)) / ((n1 * cos_theta_i) + (n2 * cos_theta_t));
-			float second_term = ((n1 * cos_theta_t) - (n2 * cos_theta_i)) / ((n1 * cos_theta_t) + (n2 * cos_theta_i));
-			R = 0.5f * ((first_term * first_term) + (second_term * second_term));
+			R = FresnelReflection(cos_theta_i, n1, n2, refr, N, ray.D);
 			float random = RandomFloat();
 			if (random > R) { //Randomly refracted
 				float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
@@ -278,7 +287,7 @@ float3 Tmpl8::Renderer::RE(float3 N, Ray& ray, Material& m, bool hit_back)
 		else if(ray.depthidx <= max_depth) {
 			interim_color = Trace(ray.Reflect(I_loc, N));
 		}
-		if (hit_back) { // If we go from glass to air, we have to absorb some of the light we found (because we traverse in reverse order!)
+		if (hit_back) { // If we go from glass to air, or stay inside glass, we have to absorb some of the light we found (because we traverse in reverse order!)
 			interim_color.x *= exp(-m.absorption.x * traveled);
 			interim_color.y *= exp(-m.absorption.y * traveled);
 			interim_color.z *= exp(-m.absorption.z * traveled);
@@ -293,11 +302,13 @@ float3 Tmpl8::Renderer::RE(float3 N, Ray& ray, Material& m, bool hit_back)
 			return Trace(ray.Reflect(I_loc, N));
 		}
 		else if(ray.depthidx <= max_depth){ // Randomly diffuse
-			float3 BRDF_m = scene.GetColor(ray.I); // I deleted the PI because it was cancalled in the return * PI 
+			float3 BRDF_m = scene.GetColor(ray.I) * PI; // I deleted the PI because it was cancalled in the return * PI 
 			float3 random_dir = scene.GetDiffuseRefelectDir(N);
 			Ray newRay(I_loc + 0.0002f * random_dir, random_dir, 1e34f, ray.depthidx + 1); //+ 0.0002f * random_dir
 			float3 EI = Trace(newRay) * dot(N, random_dir);
-			return 2.0f * BRDF_m * EI;
+			float3 r_val = BRDF_m * EI * INVPI;
+			if (length(EI) < length(r_val)) cout << "MORE OUTGOING THAN INCOMING??" << endl;
+			return r_val;
 		}
 		else {
 			return float3(0, 0, 0);
