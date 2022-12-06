@@ -12,6 +12,8 @@ namespace Tmpl8
 		float3 Whitted(float3 N, Ray& ray, Material& m, bool hit_back);
 		float3 RE(float3 N, Ray& ray, Material& m, bool hit_back);
 		float4 Antialiasing(int  x, int y);
+		float FresnelReflection(float cos_theta_i, float n1, float n2, float refr, float3 N, float3 D);
+		float GetSnell(float refr, float cos_theta_i);
 		void Tick(float deltaTime);
 		void Shutdown() { /* implement if you want to do something on exit */ }
 
@@ -38,7 +40,7 @@ namespace Tmpl8
 		Scene scene;
 		Camera camera;
 
-		int max_depth = 10;
+		int max_depth = 20;
 	};
 
 } // namespace Tmpl8

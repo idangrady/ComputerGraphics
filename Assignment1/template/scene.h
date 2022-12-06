@@ -651,7 +651,7 @@ public:
 	mat4 M, invM;
 	Material material = {
 		float3(1, 0, 0), //albedo
-		0.2, //specularity
+		0.0f, //specularity
 		Medium::Undefined, //medium
 	};
 	Surface* texture;
@@ -750,64 +750,83 @@ public:
 
 #if PRETTY
 		// Load cat
-		//loadModel("assets/wolf/Wolf.obj");
 		loadModel("assets/chessboard/chessboard.obj");
 		loadModel("assets/wolf/Wolf.obj");
-		//meshPool[0]->material.specularity = 0.2f;
+		////meshPool[0]->material.specularity = 0.2f;
 		meshPool[1]->material.mat_medium = Medium::Glass;
 		meshPool[1]->Scale(float3(0.8f, 0.8f, 0.8f));
 		meshPool[1]->MoveToPlane(32.f);
 		meshPool[1]->material.absorption = float3(0.f, 1.0f, 1.0f);
 
+		int tri_id = 0;
+		// Left wall
+		Triangle* wall_l0 = new Triangle(float3(-128, 32, 128), float3(-128, 32, -128), float3(-128, 288, 128), tri_id++);
+		wall_l0->material.albedo = (0.4f, 0.4f, 0.8f);
+		Triangle* wall_l1 = new Triangle(float3(-128, 288, -128), float3(-128, 288, 128), float3(-128, 32, -128), tri_id++);
+		wall_l1->material.albedo = (0.4f, 0.4f, 0.8f);
+		// Back Wall mirror
+		Triangle* wall_b0 = new Triangle(float3(-128, 32, -128), float3(-128, 288, -128), float3(128, 32, -128), tri_id++);
+		wall_b0->material = materialMap["Mirror"];
+		Triangle* wall_b1 = new Triangle(float3(128, 288, -128), float3(128, 32, -128), float3(-128, 288, -128), tri_id++);
+		wall_b1->material = materialMap["Mirror"];
+		trianglePool.push_back(wall_l0);
+		trianglePool.push_back(wall_l1);
+		trianglePool.push_back(wall_b0);
+		trianglePool.push_back(wall_b1);
+
 		// Reserve object IDs for the lights
-		area_lights[0] = areaLight(100, areaID, float3(32, 256, 32), float3(-32, 256, 32), float3(32, 256, -32), float3(-32, 256, -32), float3(32, 256, -32), float3(-32, 256, 32));
-		spot_lights[0] = pointLight(100, float3(0, 256, 0.5), spotID);
+		area_lights[0] = areaLight(100, areaID, float3(32, 180, 32), float3(-32, 180, 32), float3(32, 180, -32), float3(-32, 180, -32), float3(32, 180, -32), float3(-32, 180, 32));
+		spot_lights[0] = pointLight(10000, float3(0, 60, 0.5), spotID);
 #else
 		// we store all primitives in one continuous buffer
 		Sphere* sphere = new Sphere(0, float3(0), 0.5f);					// 0: bouncing ball   0.5f
 		spherePool.push_back(sphere);
-		Sphere* sphere2 = new Sphere(1, float3(0, -1.5f, -1.05f), 0.5f);	// 1: glass ball
+		Sphere* sphere2 = new Sphere(1, float3(0, -2.5f, -1.05f), 0.5f);	// 1: glass ball
 		sphere2->material.albedo = float3(0.2, 0.8, 0.2);
 		sphere2->material.mat_medium = Medium::Glass;
 		sphere2->material.absorption = float3(0.2f, 2.0f, 4.0f);
 		spherePool.push_back(sphere2);
 		Cube* cube = new Cube(0, float3(0), float3(1.15f));				// 0: spinning cube
-		Cube* cube2 = new Cube(1, float3(0, -1.0f, -2.0f), float3(0.8f)); // 1 Glass cube
+		Cube* cube2 = new Cube(1, float3(0, -2.1f, -2.0f), float3(0.8f)); // 1 Glass cube
 		cube2->material.mat_medium = Medium::Glass;
 		cube2->material.albedo = float3(0.2f, 0.2f, 0.2f);
 		cube2->material.absorption = float3(0);
 		cubePool.push_back(cube);
 		cubePool.push_back(cube2);
-		Triangle* triangle = new Triangle(float3(-0.9f, 0, -1), float3(0.2f, 0, -1), float3(0, 1.0f, -0.5), 0); // 0: triangle
+
+		int tri_id = 0;
+		Triangle* triangle = new Triangle(float3(-0.9f, 0, -1), float3(0.2f, 0, -1), float3(0, 1.0f, -0.5), tri_id++); // 0: triangle
 		// Left wall
-		Triangle* wall_l0 = new Triangle(float3(-3, -3, 3), float3(-3, -3, -3), float3(-3, 3, 3), 1);
-		Triangle* wall_l1 = new Triangle(float3(-3, 3, -3), float3(-3, 3, 3), float3(-3, -3, -3), 2);
+		Triangle* wall_l0 = new Triangle(float3(-3, -3, 3), float3(-3, -3, -3), float3(-3, 3, 3), tri_id++);
+		wall_l0->material.albedo = (0.4f, 0.4f, 0.8f);
+		Triangle* wall_l1 = new Triangle(float3(-3, 3, -3), float3(-3, 3, 3), float3(-3, -3, -3), tri_id++);
+		wall_l1->material.albedo = (0.4f, 0.4f, 0.8f);
 		// Right wall mirro
-		Triangle* wall_r0 = new Triangle(float3(2.99, -2.5, 2.5), float3(2.99, 2.5, 2.5), float3(2.99, -2.5, -2.5), 3);
+		Triangle* wall_r0 = new Triangle(float3(2.99, -2.5, 2.5), float3(2.99, 2.5, 2.5), float3(2.99, -2.5, -2.5), tri_id++);
 		wall_r0->material = materialMap["Mirror"];
-		Triangle* wall_r1 = new Triangle(float3(2.99, 2.5, -2.5), float3(2.99, -2.5, -2.5), float3(2.99, 2.5, 2.5), 4);
+		Triangle* wall_r1 = new Triangle(float3(2.99, 2.5, -2.5), float3(2.99, -2.5, -2.5), float3(2.99, 2.5, 2.5), tri_id++);
 		wall_r1->material = materialMap["Mirror"];
 		// Right wall backdrop
-		Triangle* wall_r_backdrop0 = new Triangle(float3(3.0, -3.0, 3), float3(3, 3, 3), float3(3, -3, -3), 5);
-		Triangle* wall_r_backdrop1 = new Triangle(float3(3.0, 3.0, -3), float3(3, -3, -3), float3(3, 3, 3), 6);
+		Triangle* wall_r_backdrop0 = new Triangle(float3(3.0, -3.0, 3), float3(3, 3, 3), float3(3, -3, -3), tri_id++);
+		Triangle* wall_r_backdrop1 = new Triangle(float3(3.0, 3.0, -3), float3(3, -3, -3), float3(3, 3, 3), tri_id++);
 		wall_r_backdrop0->material.albedo = float3(0.5, 0.5, 0);
 		wall_r_backdrop1->material.albedo = float3(0.5, 0.5, 0);
 		// Ceiling
-		Triangle* ceiling_0 = new Triangle(float3(3, 3, 3), float3(-3, 3, 3), float3(3, 3, -3), 7);
-		Triangle* ceiling_1 = new Triangle(float3(-3, 3, -3), float3(3, 3, -3), float3(-3, 3, 3), 8);
+		Triangle* ceiling_0 = new Triangle(float3(3, 3, 3), float3(-3, 3, 3), float3(3, 3, -3), tri_id++);
+		Triangle* ceiling_1 = new Triangle(float3(-3, 3, -3), float3(3, 3, -3), float3(-3, 3, 3), tri_id++);
 		ceiling_0->material.albedo = float3(0.0, 0.5, 0.5);
 		ceiling_1->material.albedo = float3(0.0, 0.5, 0.5);
 
 		// Back wall
-		Triangle* wall_b0 = new Triangle(float3(-3, -3, 3), float3(-3, 3, 3), float3(3, -3, 3), 9);
-		Triangle* wall_b1 = new Triangle(float3(3, 3, 3), float3(3, -3, 3), float3(-3, 3, 3), 10);
+		Triangle* wall_b0 = new Triangle(float3(-3, -3, 3), float3(-3, 3, 3), float3(3, -3, 3), tri_id++);
+		Triangle* wall_b1 = new Triangle(float3(3, 3, 3), float3(3, -3, 3), float3(-3, 3, 3), tri_id++);
 		wall_b0->material.albedo = float3(0.5, 0, 0.5);
 		wall_b1->material.albedo = float3(0.5, 0, 0.5);
 		// floor
-		Triangle* floor_0 = new Triangle(float3(3, -3, 3), float3(3, -3, -3), float3(-3, -3, 3), 11);
-		Triangle* floor_1 = new Triangle(float3(-3, -3, -3), float3(-3, -3, 3), float3(3, -3, -3), 12);
-		floor_0->material.albedo = float3(0.2, 1, 0);
-		floor_1->material.albedo = float3(0.2, 1, 0);
+		Triangle* floor_0 = new Triangle(float3(3, -3, 3), float3(3, -3, -3), float3(-3, -3, 3), tri_id++);
+		Triangle* floor_1 = new Triangle(float3(-3, -3, -3), float3(-3, -3, 3), float3(3, -3, -3), tri_id++);
+		floor_0->material.albedo = float3(0.2, 0.4, 0);
+		floor_1->material.albedo = float3(0.2, 0.4, 0);
 
 		//// area light
 		//Triangle* light_1 = new Triangle(float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), 13);
@@ -831,8 +850,8 @@ public:
 		trianglePool.push_back(floor_1);
 
 		// Reserve object IDs for the lights
-		area_lights[0] = areaLight(10, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5));
-		spot_lights[0] = pointLight(10, float3(0, 1.5, 0.5), spotID);
+		area_lights[0] = areaLight(24, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5));
+		spot_lights[0] = pointLight(24, float3(0, 1.5, 0.5), spotID);
 #endif
 
 
@@ -984,6 +1003,7 @@ public:
 		
 		return color;
 	}
+
 	void FindNearest( Ray& ray ) const
 	{
 		// room walls - ugly shortcut for more speed
