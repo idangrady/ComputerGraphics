@@ -22,7 +22,7 @@ public:
 
 
 		// setup a basic view frustum
-		camPos_start = float3(0, 80, -128);
+		camPos_start = float3(0, 0, -2);
 		startDir = float3(0, 0, 1);
 		camPos = camPos_start;
 		topLeft_start = float3( -viewWidth, camPos_start.y + 1, camPos_start.z + 2 );
@@ -47,6 +47,15 @@ public:
 		topLeft =  mat4::RotateY(-yaw) * (mat4::RotateX(-pitch) * float3(-viewWidth, 1, 2));
 		topRight = mat4::RotateY(-yaw) * (mat4::RotateX(-pitch) * float3(viewWidth, 1, 2));
 		bottomLeft = mat4::RotateY(-yaw) * (mat4::RotateX(-pitch) * float3(-viewWidth, -1, 2));
+		topRight += camPos;
+		bottomLeft += camPos;
+		topLeft += camPos;
+	}
+
+	void matRotate(mat4 m) {
+		topLeft = m * float3(-viewWidth, 1, 2);
+		topRight = m * float3(viewWidth, 1, 2);
+		bottomLeft = m * float3(-viewWidth, -1, 2);
 		topRight += camPos;
 		bottomLeft += camPos;
 		topLeft += camPos;
