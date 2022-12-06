@@ -33,7 +33,7 @@ namespace Tmpl8
 
 		bool sendWhitted = sendWhittedCONFIG;
 
-		uint8_t num_antiAlias = 1;
+		uint8_t num_antiAlias = 5;
 
 		float3 mov;
 		float3 fovc; // interactive FOV

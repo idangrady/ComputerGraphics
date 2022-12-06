@@ -84,11 +84,10 @@ void Renderer::Tick(float deltaTime)
 		// trace a primary ray for each pixel on the line
 		for (int x = 0; x < SCRWIDTH; x++) {
 #if STATIC
-			//accumulator_visit[x + y * SCRWIDTH] += 1;
-			if (frame > 1.1f) {
-				accumulator[x + y * SCRWIDTH] += float4(Trace(camera.GetPrimaryRay(x, y)), 0);
+			if (num_antiAlias > 1) {																		// anti aliasing over num_antiAlias values
+				accumulator[x + y * SCRWIDTH] += Antialiasing(x, y);
 			}
-			else accumulator[x + y * SCRWIDTH] = float4(Trace(camera.GetPrimaryRay(x, y)), 0);
+			accumulator[x + y * SCRWIDTH] += float4(Trace(camera.GetPrimaryRay(x, y)), 0);
 #else
 			if (num_antiAlias > 1) {																		// anti aliasing over num_antiAlias values
 				accumulator[x + y * SCRWIDTH] = Antialiasing(x, y);
