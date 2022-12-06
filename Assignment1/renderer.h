@@ -33,14 +33,10 @@ namespace Tmpl8
 
 		bool sendWhitted = sendWhittedCONFIG;
 
-		uint8_t num_antiAlias = 5;
-
 		float3 mov;
 		float3 fovc; // interactive FOV
 		Scene scene;
 		Camera camera;
-
-		int max_depth = 20;
 	};
 
 } // namespace Tmpl8
