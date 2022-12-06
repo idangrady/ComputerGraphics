@@ -26,15 +26,18 @@ void Renderer::Init()
 float3 Renderer::Trace(Ray& ray)
 {
 	scene.FindNearest(ray);
-	if (ray.objIdx == -1) return float3(0.0f, 0.0f, 0.02f); // or a fancy sky color
+	uint id = ray.I.instPrim >> 20;
+	//if (ray.objIdx == -1) return float3(0.5f, 0.5f, 0.5f); // or a fancy sky color
+	if (id == 0) return scene.getSkyBox(ray.D); // fancy sky color
 
-	float3 I = ray.O + ray.t * ray.D;
+	float3 I = ray.O + ray.I.t * ray.D;
 	bool hit_back = false;
-	float3 N = scene.GetNormal(ray.objIdx, I, ray.D, hit_back);
-	Material& m = scene.getMaterial(ray.objIdx);
+	float3 N = scene.GetNormal(ray.I, I, ray.D, hit_back);
+	Material& m = scene.getMaterial(ray.I.instPrim);
 
-	if (sendWhitted) { return Whitted(I, N, ray, m, hit_back); }
-	else return RE(I, N, ray, m, hit_back);
+	if (sendWhitted) { return Whitted(N, ray, m, hit_back); }
+	else return RE(N, ray, m, hit_back);
+
 }
 
 // -----------------------------------------------------------
@@ -49,13 +52,12 @@ void Renderer::Tick(float deltaTime)
 #endif
 	//Camera
 	const float speed = 0.2f;
-	camera.move(mov, speed);
+	camera.move(mult * mov, speed);
 	camera.fovUpdate(fovc,speed);
 	// pixel loop
 	Timer t;
 	// lines are executed as OpenMP parallel tasks (disabled in DEBUG)
 	frame += 1.f;
-	float invFrame = 1.0f / frame;
 #pragma omp parallel for schedule(dynamic)
 	for (int y = 0; y < SCRHEIGHT; y++)
 	{
@@ -66,7 +68,11 @@ void Renderer::Tick(float deltaTime)
 		for (int x = 0; x < SCRWIDTH; x++) {
 #if STATIC
 			//accumulator_visit[x + y * SCRWIDTH] += 1;
-			accumulator[x + y * SCRWIDTH] += float4(Trace(camera.GetPrimaryRay(x, y)), 0);
+			if (frame > 1.1f) {
+				accumulator[x + y * SCRWIDTH] += float4(Trace(camera.GetPrimaryRay(x, y)), 0) / (frame - 1.0f);
+				accumulator[x + y * SCRWIDTH] /= ((frame - 1.0f) / frame);
+			}
+			else accumulator[x + y * SCRWIDTH] = float4(Trace(camera.GetPrimaryRay(x, y)), 0);
 #else
 			if (num_antiAlias > 1) {																		// anti aliasing over num_antiAlias values
 				accumulator[x + y * SCRWIDTH] = Antialiasing(x, y);
@@ -76,21 +82,10 @@ void Renderer::Tick(float deltaTime)
 		}
 		// translate accumulator contents to rgb32 pixels
 		for (int dest = y * SCRWIDTH, x = 0; x < SCRWIDTH; x++)
-#if STATIC
-		{
-			float4 color = accumulator[x + y * SCRWIDTH];
-			color *= invFrame;
-			screen->pixels[dest + x] =
-				RGBF32_to_RGB8(&color);
-		}
-#else
-		{
 			screen->pixels[dest + x] =
 			RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
 		}
-
-#endif
-		}
+	
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
@@ -109,6 +104,7 @@ void Tmpl8::Renderer::MouseMove(int x, int y)
 
 void Tmpl8::Renderer::KeyUp(int key)
 {
+	if (key == 0x58) mult = 1.0f;
 	if (key == 0x57) mov -= float3(0, 0, 1);  // W
 	if (key == 0x41) mov -= float3(-1, 0, 0);  //A
 	if (key == 0x53) mov -= float3(0, 0, -1); //S
@@ -117,9 +113,12 @@ void Tmpl8::Renderer::KeyUp(int key)
 	if (key == 0x43) mov -= float3(0, -1, 0); // C
 	if (key == 0x45) fovc -= float3(-1,0,0); // E
 	if (key == 0x51) fovc -= float3(1, 0, 0); // Q
+
 }
+
 void Tmpl8::Renderer::KeyDown(int key)
 {
+	if (key == 0x58) mult = 100.0f;
 	if (key == 0x57) mov += float3(0, 0, 1);  // W
 	if (key == 0x41) mov += float3(-1, 0, 0);  //A
 	if (key == 0x53) mov += float3(0, 0, -1); //S
@@ -135,9 +134,10 @@ void Tmpl8::Renderer::KeyUp(int key) {}
 void Tmpl8::Renderer::KeyDown(int key) {}
 #endif
 
-float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool hit_back)
+float3 Tmpl8::Renderer::Whitted(float3 N, Ray& ray, Material& m, bool hit_back)
 {
 	float3 color = (0, 0, 0);
+	float3 I_loc = ray.O + ray.I.t * ray.D;
 
 	float s = m.specularity;
 	float d = 1.0f - s;
@@ -146,7 +146,7 @@ float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool 
 	float3 dirtolight = scene.spot_lights[0].position - I;
 	float distance_to_light = length(dirtolight);
 	dirtolight /= distance_to_light;
-	float3 offset_O = I + (0.0002f * dirtolight);
+	float3 offset_O = I_loc + (0.0002f * dirtolight);
 	Ray occlusion_ray = Ray(offset_O, dirtolight, distance_to_light - 0.0002f);
 	//color += scene.ambient * m.albedo;
 	if (m.mat_medium == Medium::Glass) {
@@ -163,7 +163,7 @@ float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool 
 		}
 		float R;
 		float T;
-		float traveled = ray.t;
+		float traveled = ray.I.t;
 		float3 interim_color = float3(0, 0, 0);
 		float cos_theta_i = dot(N, -ray.D);
 		float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
@@ -178,7 +178,7 @@ float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool 
 			// Double check for correctness later
 			float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
 			t_dir /= length(t_dir);
-			interim_color += T * Trace(Ray(I + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx + 1));
+			interim_color += T * Trace(Ray(I_loc + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx + 1));
 		}
 		else
 		{
@@ -186,7 +186,7 @@ float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool 
 			T = 0.0f;
 		}
 		if (R > 0.0f && ray.depthidx <= max_depth) {
-			interim_color += R * Trace(ray.Reflect(I, N));
+			interim_color += R * Trace(ray.Reflect(I_loc, N));
 		}
 
 		if (hit_back) { // If we go from glass to air, we have to absorb some of the light we found (because we traverse in reverse order!)
@@ -199,22 +199,32 @@ float3 Tmpl8::Renderer::Whitted(float3 I, float3 N, Ray& ray, Material& m, bool 
 	else {
 		if (s > 0.0f && ray.depthidx <= max_depth)
 		{
-			color += s * Trace(ray.Reflect(I, N)); // If specular
+			color += s * Trace(ray.Reflect(I_loc, N)); // If specular
 		}
 		if (!scene.IsOccluded(occlusion_ray))
 		{
-			if (d > 0.0f) color += d * scene.directIllumination(ray.objIdx, I, N, m.albedo); // If diffuse
+			if (d > 0.0f) 
+			{
+				float3 obj_alb = scene.GetColor(ray.I);
+				//cout << d << endl;
+				//cout << "N??: " << N.x << "|" << N.y << "|"  << N.z << endl;
+				//color += 0.5f * (N + 1.0f);
+				color += d * scene.directIllumination(ray.I.instPrim, I_loc, N, obj_alb); // If diffuse
+				//cout << color.x << "|" << color.y << "|" << color.z << endl;
+			}
 		}
 	}
 	return color;
 }
 
 
-float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m, bool hit_back)
+float3 Tmpl8::Renderer::RE(float3 N, Ray& ray, Material& m, bool hit_back)
 {	
+	float3 I_loc = ray.O + ray.I.t * ray.D;
 	float s = m.specularity;
 	float d = 1.0f - s;
 	// path tracing 
+	// TODO: FIX THIS
 	if (ray.objIdx ==6) { return float3(1, 1, 1)* scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
 	}
 	if (m.mat_medium == Medium::Glass) {
@@ -230,7 +240,7 @@ float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m, bool hit_b
 			n2 = scene.refractiveIndex[Medium::Glass];
 		}
 		float R;
-		float traveled = ray.t;
+		float traveled = ray.I.t;
 		float3 interim_color = float3(0, 0, 0);
 		float cos_theta_i = dot(N, -ray.D);
 		float k = 1.0f - (refr * refr) * (1.0f - (cos_theta_i * cos_theta_i));
@@ -247,14 +257,14 @@ float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m, bool hit_b
 			if (random > R) { //Randomly refracted
 				float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
 				t_dir /= length(t_dir);
-				interim_color = Trace(Ray(I + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx + 1));
+				interim_color = Trace(Ray(I_loc + (0.0002f * t_dir), t_dir, 1e34f, ray.depthidx + 1));
 			}
 			else if(ray.depthidx <= max_depth) { // Randomly reflected
-				interim_color = Trace(ray.Reflect(I, N));
+				interim_color = Trace(ray.Reflect(I_loc, N));
 			}
 		}
 		else if(ray.depthidx <= max_depth) {
-			interim_color = Trace(ray.Reflect(I, N));
+			interim_color = Trace(ray.Reflect(I_loc, N));
 		}
 		if (hit_back) { // If we go from glass to air, we have to absorb some of the light we found (because we traverse in reverse order!)
 			interim_color.x *= exp(-m.absorption.x * traveled);
@@ -268,12 +278,12 @@ float3 Tmpl8::Renderer::RE(float3 I, float3 N, Ray& ray, Material& m, bool hit_b
 		float random = RandomFloat();
 		if (random > d) // Randomly reflect
 		{ // Mirror
-			return Trace(ray.Reflect(I, N));
+			return Trace(ray.Reflect(I_loc, N));
 		}
 		else if(ray.depthidx <= max_depth){ // Randomly diffuse
 			float3 BRDF_m = m.albedo; // I deleted the PI because it was cancalled in the return * PI 
 			float3 random_dir = scene.GetDiffuseRefelectDir(N);
-			Ray newRay(I + 0.0002f * random_dir, random_dir, 1e34f, ray.depthidx + 1); //+ 0.0002f * random_dir
+			Ray newRay(I_loc + 0.0002f * random_dir, random_dir, 1e34f, ray.depthidx + 1); //+ 0.0002f * random_dir
 			float3 EI = Trace(newRay) * dot(N, random_dir);
 			return 2.0f * BRDF_m * EI;
 		}

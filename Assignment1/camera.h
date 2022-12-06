@@ -17,17 +17,17 @@ public:
 		double vfov = 90;
 		float theta = degrees_to_radians(vfov);
 		float h = tan(theta / 2.0f);
-		float viewWidth = aspect * h;
+		viewWidth = aspect * h;
 
 
 
 		// setup a basic view frustum
-		camPos_start = float3(0, 0, -2);
+		camPos_start = float3(0, 80, -128);
 		startDir = float3(0, 0, 1);
 		camPos = camPos_start;
-		topLeft_start = float3( -viewWidth, 1, 0 );
-		topRight_start = float3(viewWidth, 1, 0 ); // changed
-		bottomLeft_start = float3( -viewWidth, -1, 0 );
+		topLeft_start = float3( -viewWidth, camPos_start.y + 1, camPos_start.z + 2 );
+		topRight_start = float3(viewWidth, camPos_start.y + 1, camPos_start.z + 2); // changed
+		bottomLeft_start = float3( -viewWidth, -camPos_start.y - 1, camPos_start.z + 2);
 		topLeft = topLeft_start;
 		topRight = topRight_start;
 		bottomLeft = bottomLeft_start;
@@ -44,9 +44,9 @@ public:
 		const float min_pitch = -(PI / 2) + FLT_MIN;
 		const float max_pitch = (PI / 2) - FLT_MIN;
 		pitch = clamp(pitch, min_pitch, max_pitch);
-		topLeft =  mat4::RotateY(-yaw) * (mat4::RotateX(-pitch) * (topLeft_start - camPos_start));
-		topRight = mat4::RotateY(-yaw) * (mat4::RotateX(-pitch) * (topRight_start - camPos_start));
-		bottomLeft = mat4::RotateY(-yaw) * (mat4::RotateX(-pitch) * (bottomLeft_start - camPos_start));
+		topLeft =  mat4::RotateY(-yaw) * (mat4::RotateX(-pitch) * float3(-viewWidth, 1, 2));
+		topRight = mat4::RotateY(-yaw) * (mat4::RotateX(-pitch) * float3(viewWidth, 1, 2));
+		bottomLeft = mat4::RotateY(-yaw) * (mat4::RotateX(-pitch) * float3(-viewWidth, -1, 2));
 		topRight += camPos;
 		bottomLeft += camPos;
 		topLeft += camPos;
@@ -107,6 +107,7 @@ public:
 	float vfov;
 	float theta;
 	float h;
+	float viewWidth;
 	float viewport_height;
 	float viewport_width;
 

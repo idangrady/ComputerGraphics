@@ -10,8 +10,8 @@ namespace Tmpl8
 		// game flow methods
 		void Init();
 		float3 Trace(Ray& ray);
-		float3 Whitted(float3 I, float3 N, Ray& ray, Material& m, bool hit_back);
-		float3 RE(float3 I, float3 N, Ray& ray, Material& m, bool hit_back);
+		float3 Whitted(float3 N, Ray& ray, Material& m, bool hit_back);
+		float3 RE(float3 N, Ray& ray, Material& m, bool hit_back);
 		float4 Antialiasing(int  x, int y);
 		void Tick(float deltaTime);
 		void Shutdown() { /* implement if you want to do something on exit */ }
@@ -28,6 +28,7 @@ namespace Tmpl8
 		// data members
 		float4* accumulator;
 		float frame;
+		float mult = 1.0f;
 
 		bool sendWhitted = sendWhittedCONFIG;
 
