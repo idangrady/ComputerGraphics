@@ -265,8 +265,6 @@ float3 Tmpl8::Renderer::RE(float3 N, Ray& ray, Material& m, bool hit_back)
 			float first_term = ((n1 * cos_theta_i) - (n2 * cos_theta_t)) / ((n1 * cos_theta_i) + (n2 * cos_theta_t));
 			float second_term = ((n1 * cos_theta_t) - (n2 * cos_theta_i)) / ((n1 * cos_theta_t) + (n2 * cos_theta_i));
 			R = 0.5f * ((first_term * first_term) + (second_term * second_term));
-			float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
-			t_dir /= length(t_dir);
 			float random = RandomFloat();
 			if (random > R) { //Randomly refracted
 				float3 t_dir = (refr * ray.D) + (N * (refr * cos_theta_i - sqrtf(k)));
