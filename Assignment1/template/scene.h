@@ -719,11 +719,11 @@ public:
 	Scene()
 	{
 		// Skybox
-		unsigned char* data = stbi_load("assets/clarens_midday_4k.png", &width, &height, &nrChannels, 0);
+		float* data = stbi_loadf("assets/clarens_midday_4k.hdr", &width, &height, &nrChannels, 0);
 		if (data) {
-			skybox = (unsigned char*)MALLOC64(width * height * 4 * sizeof(char));
+			skybox = (float*)MALLOC64(width * height * nrChannels * sizeof(float));
 			loadedSkybox = true;
-			memcpy(skybox, data, width * height * 4);
+			memcpy(skybox, data, width * height * nrChannels * sizeof(float));
 			stbi_image_free(data);
 		}
 		else {
@@ -901,11 +901,11 @@ public:
 		float y = theta / PI;
 		int x_ = (int)(x * width);
 		int y_ = (int)(y * height);
-		unsigned char* pixel = skybox + (y_ * width + x_) * nrChannels;
-		unsigned char r = pixel[0];
-		unsigned char g = pixel[1];
-		unsigned char b = pixel[2];
-		return float3(r / 255.f, g / 255.f, b / 255.f);
+		float* pixel = skybox + (y_ * width + x_) * nrChannels;
+		float r = pixel[0];
+		float g = pixel[1];
+		float b = pixel[2];
+		return float3(r, g , b);
 	}
 
 	float3 GetLightPos(int i = 0) const
@@ -1125,7 +1125,8 @@ public:
 	static inline vector<Cube*> cubePool;
 	static inline vector<Mesh*> meshPool;
 	static inline map<string, Material> materialMap;
-	unsigned char* skybox;
+	//unsigned char* skybox;
+	float* skybox;
 	int width, height, nrChannels;
 	bool loadedSkybox = false;
 	map<Medium, float> refractiveIndex;
