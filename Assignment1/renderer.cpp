@@ -16,6 +16,8 @@ void Renderer::Init()
 
 	POINT cursorPosition;
 	GetCursorPos(&cursorPosition);
+	camera.move(float3(-1, 0, -2), 1.0f);
+	camera.rotate(int2(-100, -100), 0.003f);
 }
 
 // -----------------------------------------------------------
@@ -53,6 +55,7 @@ void Renderer::Tick(float deltaTime)
 	Timer t;
 	// lines are executed as OpenMP parallel tasks (disabled in DEBUG)
 	frame += 1.f;
+	float invFrame = 1.0f / frame;
 #pragma omp parallel for schedule(dynamic)
 	for (int y = 0; y < SCRHEIGHT; y++)
 	{
@@ -63,11 +66,7 @@ void Renderer::Tick(float deltaTime)
 		for (int x = 0; x < SCRWIDTH; x++) {
 #if STATIC
 			//accumulator_visit[x + y * SCRWIDTH] += 1;
-			if (frame > 1.1f) {
-				accumulator[x + y * SCRWIDTH] += float4(Trace(camera.GetPrimaryRay(x, y)), 0) / (frame - 1.0f);
-				accumulator[x + y * SCRWIDTH] /= ((frame - 1.0f) / frame);
-			}
-			else accumulator[x + y * SCRWIDTH] = float4(Trace(camera.GetPrimaryRay(x, y)), 0);
+			accumulator[x + y * SCRWIDTH] += float4(Trace(camera.GetPrimaryRay(x, y)), 0);
 #else
 			if (num_antiAlias > 1) {																		// anti aliasing over num_antiAlias values
 				accumulator[x + y * SCRWIDTH] = Antialiasing(x, y);
@@ -77,8 +76,20 @@ void Renderer::Tick(float deltaTime)
 		}
 		// translate accumulator contents to rgb32 pixels
 		for (int dest = y * SCRWIDTH, x = 0; x < SCRWIDTH; x++)
+#if STATIC
+		{
+			float4 color = accumulator[x + y * SCRWIDTH];
+			color *= invFrame;
+			screen->pixels[dest + x] =
+				RGBF32_to_RGB8(&color);
+		}
+#else
+		{
 			screen->pixels[dest + x] =
 			RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
+		}
+
+#endif
 		}
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
