@@ -744,8 +744,8 @@ public:
 		meshPool[1]->Scale(float3(0.5f, 0.5f, 0.5f));
 
 		// Reserve object IDs for the lights
-		area_lights[0] = areaLight(2400, areaID, float3(32, 64, 32), float3(-32, 64, 32), float3(32, 64, -32), float3(-32, 64, -32), float3(32, 64, -32), float3(-32, 64, 32));
-		spot_lights[0] = pointLight(2400, float3(0, 64, 0.5), spotID);
+		area_lights[0] = areaLight(6000, areaID, float3(32, 256, 32), float3(-32, 256, 32), float3(32, 256, -32), float3(-32, 256, -32), float3(32, 256, -32), float3(-32, 256, 32));
+		spot_lights[0] = pointLight(2400, float3(0, 256, 0.5), spotID);
 #else
 		// we store all primitives in one continuous buffer
 		Sphere* sphere = new Sphere(0, float3(0), 0.5f);					// 0: bouncing ball   0.5f

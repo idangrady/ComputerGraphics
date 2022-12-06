@@ -17,7 +17,7 @@ void Renderer::Init()
 	POINT cursorPosition;
 	GetCursorPos(&cursorPosition);
 #if PRETTY
-	camera.move(float3(128, 128, -128), 1.0f);
+	camera.move(float3(160, 150, 200), 1.0f);
 	mat4 m = mat4::LookAt(camera.camPos, float3(0, 64, 0));
 	camera.matRotate(m);
 #else
@@ -69,6 +69,9 @@ void Renderer::Tick(float deltaTime)
 	Timer t;
 	// lines are executed as OpenMP parallel tasks (disabled in DEBUG)
 	frame += 1.f;
+#if STATIC
+	cout << "Frame: " << frame << endl;
+#endif
 	float invFrame = 1.f / frame;
 #pragma omp parallel for schedule(dynamic)
 	for (int y = 0; y < SCRHEIGHT; y++)
