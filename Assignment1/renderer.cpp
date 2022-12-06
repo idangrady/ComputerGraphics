@@ -16,8 +16,14 @@ void Renderer::Init()
 
 	POINT cursorPosition;
 	GetCursorPos(&cursorPosition);
+#if PRETTY
+	camera.move(float3(128, 128, -128), 1.0f);
+	mat4 m = mat4::LookAt(camera.camPos, float3(0, 64, 0));
+	camera.matRotate(m);
+#else
 	camera.move(float3(-1, 0, -2), 1.0f);
 	camera.rotate(int2(-100, -100), 0.003f);
+#endif
 }
 
 // -----------------------------------------------------------
@@ -26,14 +32,19 @@ void Renderer::Init()
 float3 Renderer::Trace(Ray& ray)
 {
 	scene.FindNearest(ray);
-	uint id = ray.I.instPrim >> 20;
+	uint typeId = GetObjectType(ray.I.instPrim);
+	uint id = GetObjectIndex(ray.I.instPrim);
 	//if (ray.objIdx == -1) return float3(0.5f, 0.5f, 0.5f); // or a fancy sky color
-	if (id == 0) return scene.getSkyBox(ray.D); // fancy sky color
+	if (typeId == skyBoxID) return scene.getSkyBox(ray.D); // fancy sky color
+	if (id == scene.areaID) return scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
+	if (id == scene.spotID) return scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
+
 
 	float3 I = ray.O + ray.I.t * ray.D;
 	bool hit_back = false;
 	float3 N = scene.GetNormal(ray.I, I, ray.D, hit_back);
 	Material& m = scene.getMaterial(ray.I.instPrim);
+	//if (m.isLight) return scene.GetColor(I);
 
 	if (sendWhitted) { return Whitted(N, ray, m, hit_back); }
 	else return RE(N, ray, m, hit_back);
@@ -58,6 +69,7 @@ void Renderer::Tick(float deltaTime)
 	Timer t;
 	// lines are executed as OpenMP parallel tasks (disabled in DEBUG)
 	frame += 1.f;
+	float invFrame = 1.f / frame;
 #pragma omp parallel for schedule(dynamic)
 	for (int y = 0; y < SCRHEIGHT; y++)
 	{
@@ -69,8 +81,7 @@ void Renderer::Tick(float deltaTime)
 #if STATIC
 			//accumulator_visit[x + y * SCRWIDTH] += 1;
 			if (frame > 1.1f) {
-				accumulator[x + y * SCRWIDTH] += float4(Trace(camera.GetPrimaryRay(x, y)), 0) / (frame - 1.0f);
-				accumulator[x + y * SCRWIDTH] /= ((frame - 1.0f) / frame);
+				accumulator[x + y * SCRWIDTH] += float4(Trace(camera.GetPrimaryRay(x, y)), 0);
 			}
 			else accumulator[x + y * SCRWIDTH] = float4(Trace(camera.GetPrimaryRay(x, y)), 0);
 #else
@@ -82,8 +93,15 @@ void Renderer::Tick(float deltaTime)
 		}
 		// translate accumulator contents to rgb32 pixels
 		for (int dest = y * SCRWIDTH, x = 0; x < SCRWIDTH; x++)
-			screen->pixels[dest + x] =
-			RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
+#if STATIC
+		{
+			float4 color = accumulator[x + y * SCRWIDTH];
+			color *= invFrame;
+			screen->pixels[dest + x] = RGBF32_to_RGB8(&color);
+		}
+#else
+			screen->pixels[dest + x] = RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
+#endif
 		}
 	
 	// performance report - running average - ms, MRays/s
@@ -143,7 +161,7 @@ float3 Tmpl8::Renderer::Whitted(float3 N, Ray& ray, Material& m, bool hit_back)
 	float d = 1.0f - s;
 
 	//Ray secondary_ray = ray.reflect(I, N, ray.depthidx);
-	float3 dirtolight = scene.spot_lights[0].position - I;
+	float3 dirtolight = scene.spot_lights[0].position - I_loc;
 	float distance_to_light = length(dirtolight);
 	dirtolight /= distance_to_light;
 	float3 offset_O = I_loc + (0.0002f * dirtolight);
@@ -205,12 +223,7 @@ float3 Tmpl8::Renderer::Whitted(float3 N, Ray& ray, Material& m, bool hit_back)
 		{
 			if (d > 0.0f) 
 			{
-				float3 obj_alb = scene.GetColor(ray.I);
-				//cout << d << endl;
-				//cout << "N??: " << N.x << "|" << N.y << "|"  << N.z << endl;
-				//color += 0.5f * (N + 1.0f);
-				color += d * scene.directIllumination(ray.I.instPrim, I_loc, N, obj_alb); // If diffuse
-				//cout << color.x << "|" << color.y << "|" << color.z << endl;
+				color += d * scene.directIllumination(ray.I, I_loc, N); // If diffuse
 			}
 		}
 	}
@@ -224,9 +237,7 @@ float3 Tmpl8::Renderer::RE(float3 N, Ray& ray, Material& m, bool hit_back)
 	float s = m.specularity;
 	float d = 1.0f - s;
 	// path tracing 
-	// TODO: FIX THIS
-	if (ray.objIdx ==6) { return float3(1, 1, 1)* scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
-	}
+
 	if (m.mat_medium == Medium::Glass) {
 		float refr, n1, n2;
 		if (hit_back) { // From Glass to Air

@@ -29,36 +29,56 @@
 #define PLANE_Y(o,i) {if((t=-(ray.O.y+o)*ray.rD.y)<ray.I.t)ray.I.t=t,ray.objIdx=i;}
 #define PLANE_Z(o,i) {if((t=-(ray.O.z+o)*ray.rD.z)<ray.I.t)ray.I.t=t,ray.objIdx=i;}
 
-enum class Medium {
-	Undefined = -1,
-	Air = 0,
-	Glass = 1,
-};
-
-
-struct Material
-{
-	Material() = default;
-	Material(float3 a, float s = 1, Medium m = Medium::Undefined) : albedo(a), specularity(s), mat_medium(m) {}
-	float3 albedo = (0.9f, 0.9f, 0.9f); // color material
-	float specularity;
-	bool isLight = false;
-	float3 absorption = (0, 0, 0);
-	Medium mat_medium{ Medium::Undefined };
-};
-
-// intersection record, carefully tuned to be 16 bytes in size and equally carefully yoinked from jacco.ompf2.com
-struct Intersection
-{
-	Intersection() = default;
-	float t = 1e34f;		// intersection distance along ray
-	float u, v;		// barycentric coordinates of the intersection
-	uint instPrim = 0;	// instance index (12 bit) and primitive index (20 bit)
-};
-
 namespace Tmpl8 {
+	const uint sphereID = 0;
+	const uint cubeID = 1;
+	const uint triangleID = 2;
+	const uint meshID = 3;
+	const uint planeID = 4;
+	const uint lightID = 5;
+	const uint skyBoxID = 6;
 
+	static inline uint MakeID(uint type, uint id, uint tri) {
+		return (type << 29) + (id << 20) + (tri);
+	}
 
+	static inline uint GetObjectType(uint idx) {
+		const uint mask = ~0 << 29;
+		return (idx & mask) >> 29;
+	}
+	static inline uint GetObjectIndex(uint idx) {
+		const uint mask = ((~0 << 20) & ~(7 << 29)); // This mask is giving me a headache;
+		return (idx & mask) >> 20;
+	}
+	static inline uint GetTriangleIndex(uint idx) {
+		const uint mask = ~(~0 << 20);
+		return idx & mask;
+	}
+	enum class Medium {
+		Undefined = -1,
+		Air = 0,
+		Glass = 1,
+	};
+
+	struct Material
+	{
+		Material() = default;
+		Material(float3 a, float s = 1, Medium m = Medium::Undefined) : albedo(a), specularity(s), mat_medium(m) {}
+		float3 albedo = (0.9f, 0.9f, 0.9f); // color material
+		float specularity;
+		bool isLight = false;
+		float3 absorption = (0, 0, 0);
+		Medium mat_medium{ Medium::Undefined };
+	};
+
+	// intersection record, carefully tuned to be 16 bytes in size and equally carefully yoinked from jacco.ompf2.com
+	struct Intersection
+	{
+		Intersection() = default;
+		float t = 1e34f;		// intersection distance along ray
+		float u, v;		// barycentric coordinates of the intersection
+		uint instPrim = MakeID(skyBoxID, 0, 0);	// Type indedx (3 bit), instance index (9 bit) and primitive index (20 bit)
+	};
 
 __declspec(align(64)) class Ray
 {
@@ -125,13 +145,13 @@ public:
 		d = sqrtf( d ), t = -b - d;
 		if (t < ray.I.t && t > 0)
 		{
-			ray.I.t = t, ray.I.instPrim = objIdx << 20;
+			ray.I.t = t, ray.I.instPrim = MakeID(sphereID, objIdx, 0);
 			return;
 		}
 		t = d - b;
 		if (t < ray.I.t && t > 0)
 		{
-			ray.I.t = t, ray.I.instPrim = objIdx << 20;
+			ray.I.t = t, ray.I.instPrim = MakeID(sphereID, objIdx, 0);
 			return;
 		}
 	}
@@ -139,15 +159,13 @@ public:
 	{
 		return (I - this->pos) * invr;
 	}
-	float3 GetAlbedo( const float3 I ) const
+	float3 GetAlbedo() const
 	{
-		return float3( 0.93f );
+		return material.albedo;
 	}
 	float3 pos = 0;
 	float r2 = 0, invr = 0;
 	uint objIdx = 0;
-
-	float3 color = float3(0, 0, 1);
 	static int id; 
 	Material material = {
 		float3(0, 0, 1), //albedo
@@ -169,7 +187,7 @@ public:
 	void Intersect( Ray& ray ) const
 	{
 		float t = -(dot( ray.O, this->N ) + this->d) / (dot( ray.D, this->N ));
-		if (t < ray.I.t && t > 0) ray.I.t = t, ray.I.instPrim = objIdx << 20;
+		if (t < ray.I.t && t > 0) ray.I.t = t, ray.I.instPrim = MakeID(planeID, objIdx, 0);
 	}
 	float3 GetNormal( const float3 I ) const
 	{
@@ -242,11 +260,11 @@ public:
 		tmin = max( tmin, tzmin ), tmax = min( tmax, tzmax );
 		if (tmin > 0)
 		{
-			if (tmin < ray.I.t) ray.I.t = tmin, ray.I.instPrim = objIdx << 20;
+			if (tmin < ray.I.t) ray.I.t = tmin, ray.I.instPrim = Tmpl8::MakeID(cubeID, objIdx, 0);;
 		}
 		else if (tmax > 0)
 		{
-			if (tmax < ray.I.t) ray.I.t = tmax, ray.I.instPrim = objIdx << 20;
+			if (tmax < ray.I.t) ray.I.t = tmax, ray.I.instPrim = Tmpl8::MakeID(cubeID, objIdx, 0);;
 		}
 	}
 	float3 GetNormal( const float3 I ) const
@@ -289,7 +307,7 @@ public:
 	Triangle(float3 v0, float3 v1, float3 v2, uint id) : vertex0(v0), vertex1(v1), vertex2(v2) {
 		centroid = (v0 + v1 + v2) / 3.0;
 		normal = normalize(cross((v1 - v0), (v2 - v0)));
-		objIdx = 10 + id;
+		objIdx = id;
 	}
 	Triangle(float3 v0, float3 v1, float3 v2, int id, Material mat) : Triangle(v0, v1, v2, id) {
 		material = mat;
@@ -311,8 +329,8 @@ public:
 		if (v < 0 || u + v > 1) return;
 		const float t = f * dot(edge2, q);
 		if (t > 0.0001f && t < ray.I.t) {
-			ray.I.t = t;	
-			ray.I.instPrim = objIdx << 20;
+			ray.I.t = t;
+			ray.I.instPrim = Tmpl8::MakeID(triangleID, objIdx, 0);;
 		}
 	}
 	float3 GetNormal() const 
@@ -343,21 +361,22 @@ public:
 	float3 color{ 1.0f, 1.0f, 1.0f };
 	float lumen;
 	uint idx;
+	Material material;
 
 	void setLightColor(float3 c) { color = c; };
 	uint8_t getidx() { return idx; }
+	Material getMaterial() const { return material; }
 	float3 getLightColor() const { return lumen* color; };
 };
-class Triangle; class Ray; class Sphere;
-class areaLight :light
+//class Triangle; class Ray; class Sphere;
+class areaLight : public light
 {
 public:
 	areaLight() = default;
 	areaLight(float i, uint id, float3 p1_, float3 p2_, float3 p3_, float3 p4_, float3 p5_, float3 p6_) :light(i, id) {
 		p1 = p1_; p2 = p2_; p3 = p3_;  p4 = p4_;  p5 = p5_;  p6 = p6_;
-		cout << id << endl;
 		triangle_p1 = new Triangle(p1_, p2_, p3_, id);
-		triangle_p2 = new Triangle(p4_, p5_, p6, id );
+		triangle_p2 = new Triangle(p4_, p5_, p6, id);
 		triangle_p1->material.isLight = true;
 		triangle_p2->material.isLight = true;
 		//triangle_p1->material.;
@@ -378,7 +397,7 @@ public:
 	Triangle* triangle_p2;
 };
 
-class pointLight :light
+class pointLight : public light
 {
 public:
 	pointLight() = default;
@@ -426,6 +445,16 @@ public:
 		M = transform;
 		invM = transform.FastInvertedTransformNoScale();
 	};
+
+	void Translate(float3 d) {
+		for (Tri triangle : tri) {
+			triangle.vertex0 += d;
+			triangle.vertex1 += d;
+			triangle.vertex2 += d;
+			triangle.centroid += d;
+		}
+	}
+
 	void Intersect(Ray& ray) {
 		for (uint i = 0; i < tri.size(); i++) {
 			const float3 edge1 = tri[i].vertex1 - tri[i].vertex0;
@@ -445,13 +474,12 @@ public:
 				ray.I.t = t;
 				ray.I.u = u;
 				ray.I.v = v;
-				ray.I.instPrim = (objIdx << 20) + i;
+				ray.I.instPrim = Tmpl8::MakeID(meshID, objIdx, i);
 			}
 		}
 	}
 	float3 GetColor(Intersection& I) {
-		const uint mask = ~(~0 << 20); // Mask for last 20 bits
-		uint id = I.instPrim & mask;
+		uint id = GetTriangleIndex(I.instPrim);
 		if (textureLoaded) {
 			float2 uv = I.u * triEx[id].uv1 + I.v * triEx[id].uv2 + (1.0f - (I.u + I.v)) * triEx[id].uv0;
 			int iu = (int)(uv.x * texture->width) % texture->width;
@@ -463,7 +491,6 @@ public:
 			unsigned char y = (texel >> 8);
 			unsigned char z = texel;
 			float3 returnval(x / 255.f, y / 255.f, z / 255.f);
-			//cout << "Returning:\t" << returnval.x << "|" << returnval.y << "|" << returnval.z << endl;
 			return returnval;
 		}
 		else {
@@ -471,9 +498,7 @@ public:
 		}
 	}
 	float3 GetNormal(Intersection& I) {
-		//cout << "Checking checkerboard normals??" << endl;
-		const uint mask = ~(~0 << 20); // Mask for last 20 bits
-		uint id = I.instPrim & mask;
+		uint id = GetTriangleIndex(I.instPrim);
 		if (normalMapLoaded) {
 			float2 uv = I.u * triEx[id].uv1 + I.v * triEx[id].uv2 + (1.0f - (I.u + I.v)) * triEx[id].uv0;
 			int iu = (int)(uv.x * normalMap->width) % normalMap->width;
@@ -487,9 +512,10 @@ public:
 		else {
 			//cout << triEx[id].N0.x << "|" << triEx[id].N0.y << "|" << triEx[id].N0.z << endl;
 			//cout << id << endl;
-			float3 N = I.u * triEx[id].N1 + I.v * triEx[id].N2 + (1.0f - (I.u + I.v)) * triEx[id].N0;
+			//float3 N = I.u * triEx[id].N1 + I.v * triEx[id].N2 + (1.0f - (I.u + I.v)) * triEx[id].N0;
+			return triEx[id].N0; // Since per vertex normals dont work properly we just do face normal
 			//cout << "NORMAL?: " << N.x << "|" << N.y << "|" << N.z << endl;
-			return normalize(N);
+			//return normalize(N);
 		}
 		//float3 N =  -normalize(cross((tri[id].vertex1 - tri[id].vertex0), (tri[id].vertex2 - tri[id].vertex0)));
 		//float3 N = float3(0, 1, 0);
@@ -595,6 +621,7 @@ public:
 			m->normalMap = new Surface(filename.c_str());
 			m->normalMapLoaded = true;
 		}
+		cout << "Loaded model with " << m->tri.size() << " triangles." << endl;
 		return m;
 	}
 	vector<Tri> tri;
@@ -667,13 +694,6 @@ class Scene
 public:
 	Scene()
 	{
-		// Load cat
-		//loadModel("assets/wolf/Wolf.obj");
-		//loadModel("assets/chessboard/chessboard.obj");
-		loadModel("assets/wolf/Wolf.obj");
-		//meshPool[0]->material.specularity = 0.2f;
-		meshPool[0]->material.mat_medium = Medium::Glass;
-
 		// Skybox
 		unsigned char* data = stbi_load("assets/clarens_midday_4k.png", &width, &height, &nrChannels, 0);
 		if (data) {
@@ -686,6 +706,7 @@ public:
 			cout << stbi_failure_reason() << endl;
 			throw exception("Failed to load Skybox.");
 		}
+
 
 		// Precalc refractive mappings
 		refractiveIndex[Medium::Air] = 1.0;
@@ -703,28 +724,34 @@ public:
 		materialMap["Mirror"] = mirror;
 
 
+#if PRETTY
+		// Load cat
+		//loadModel("assets/wolf/Wolf.obj");
+		loadModel("assets/chessboard/chessboard.obj");
+		//loadModel("assets/wolf/Wolf.obj");
+		//meshPool[0]->material.specularity = 0.2f;
+		//meshPool[0]->material.mat_medium = Medium::Glass;
+
+		// Reserve object IDs for the lights
+		area_lights[0] = areaLight(2400, areaID, float3(32, 64, 32), float3(-32, 64, 32), float3(32, 64, -32), float3(-32, 64, -32), float3(32, 64, -32), float3(-32, 64, 32));
+		spot_lights[0] = pointLight(2400, float3(0, 64, 0.5), spotID);
+#else
 		// we store all primitives in one continuous buffer
-		//quad = Quad( 0, 1 );									// 0: light source
-
-		//lightSphere.material.albedo = (1, 1, 1);
-		sphere = Sphere( 1, float3( 0 ), 0.5f);					// 1: bouncing ball   0.5f
-		sphere2 = Sphere( 2, float3( 0, -1.5f, -1.05f ), 0.5f );	// 2: glass ball
-		sphere2.material.albedo = float3(0.2, 0.8, 0.2);
-		sphere2.material.mat_medium = Medium::Glass;
-		sphere2.material.absorption = float3(0.2f, 2.0f, 4.0f);
-		cube = Cube(4, float3(0), float3(1.15f));				// 4: cube 		cube = Cube( 3, float3( 0 ), float3( 1.15f ) );		
-		cube2 = Cube(5, float3(0, -1.0f, -2.0f), float3(0.8f)); // 5 Glass cube
-		cube2.material.mat_medium = Medium::Glass;
-		cube2.material.albedo = float3(0.2f, 0.2f, 0.2f);
-		cube2.material.absorption = float3(0);
-		
-
-		area_lights[0] = areaLight(24, 6 - 10, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5));
-		spot_lights[0] = pointLight(24, float3(0, 1.5, 0.5), 5);
-		//lightSphere = L[0];
-
-
-		Triangle* triangle = new Triangle(float3(-0.9f, 0, -1), float3(0.2f, 0, -1), float3(0, 1.0f, -0.5), 0); // 10: triangle
+		Sphere* sphere = new Sphere(0, float3(0), 0.5f);					// 0: bouncing ball   0.5f
+		spherePool.push_back(sphere);
+		Sphere* sphere2 = new Sphere(1, float3(0, -1.5f, -1.05f), 0.5f);	// 1: glass ball
+		sphere2->material.albedo = float3(0.2, 0.8, 0.2);
+		sphere2->material.mat_medium = Medium::Glass;
+		sphere2->material.absorption = float3(0.2f, 2.0f, 4.0f);
+		spherePool.push_back(sphere2);
+		Cube* cube = new Cube(0, float3(0), float3(1.15f));				// 0: spinning cube
+		Cube* cube2 = new Cube(1, float3(0, -1.0f, -2.0f), float3(0.8f)); // 1 Glass cube
+		cube2->material.mat_medium = Medium::Glass;
+		cube2->material.albedo = float3(0.2f, 0.2f, 0.2f);
+		cube2->material.absorption = float3(0);
+		cubePool.push_back(cube);
+		cubePool.push_back(cube2);
+		Triangle* triangle = new Triangle(float3(-0.9f, 0, -1), float3(0.2f, 0, -1), float3(0, 1.0f, -0.5), 0); // 0: triangle
 		// Left wall
 		Triangle* wall_l0 = new Triangle(float3(-3, -3, 3), float3(-3, -3, -3), float3(-3, 3, 3), 1);
 		Triangle* wall_l1 = new Triangle(float3(-3, 3, -3), float3(-3, 3, 3), float3(-3, -3, -3), 2);
@@ -750,7 +777,7 @@ public:
 		wall_b0->material.albedo = float3(0.5, 0, 0.5);
 		wall_b1->material.albedo = float3(0.5, 0, 0.5);
 		// floor
-		Triangle* floor_0= new Triangle(float3(3, -3, 3), float3(3, -3, -3), float3(-3, -3, 3), 11);
+		Triangle* floor_0 = new Triangle(float3(3, -3, 3), float3(3, -3, -3), float3(-3, -3, 3), 11);
 		Triangle* floor_1 = new Triangle(float3(-3, -3, -3), float3(-3, -3, 3), float3(3, -3, -3), 12);
 		floor_0->material.albedo = float3(0.2, 1, 0);
 		floor_1->material.albedo = float3(0.2, 1, 0);
@@ -775,6 +802,19 @@ public:
 		trianglePool.push_back(wall_b1);
 		trianglePool.push_back(floor_0);
 		trianglePool.push_back(floor_1);
+
+		// Reserve object IDs for the lights
+		area_lights[0] = areaLight(24, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5));
+		spot_lights[0] = pointLight(24, float3(0, 1.5, 0.5), spotID);
+#endif
+
+
+		
+
+		//lightSphere = L[0];
+
+
+
 		//trianglePool.push_back(light_1);
 		//trianglePool.push_back(light_2);
 
@@ -799,10 +839,10 @@ public:
 		// cube animation: spin
 		mat4 M2base = mat4::RotateX( PI / 4 ) * mat4::RotateZ( PI / 4 );
 		mat4 M2 = mat4::Translate( float3( 1.4f, 0, 2 ) ) * mat4::RotateY( animTime * 0.5f ) * M2base;
-		cube.M = M2, cube.invM = M2.FastInvertedTransformNoScale();
+		if(cubePool.size() > 0) cubePool[0]->M = M2, cubePool[0]->invM = M2.FastInvertedTransformNoScale();
 		// sphere animation: bounce
 		float tm = 1 - sqrf( fmodf( animTime, 2.0f ) - 1 );
-		sphere.pos = float3( -1.4f, -0.5f + tm, 2 );
+		if(spherePool.size() > 0 )spherePool[0]->pos = float3(-1.4f, -0.5f + tm, 2);
 	}
 
 	float3 getSkyBox(float3 dir) const {
@@ -832,19 +872,27 @@ public:
 
 	Material getMaterial(uint objIdx) const
 	{
-		uint objId = objIdx >> 20;
-		if (objId == 0) throw exception("There's no material for nothing"); // or perhaps we should just crash
-		//if (objIdx == 0) return quad.material;
-		//if (objIdx == 0) return lightSphere.position; 
-		else if (objIdx == 1) return sphere.material;
-		else if (objIdx == 2) return sphere2.material;
-		else if (objIdx == 3) return cube.material;
-		else if (objIdx == 4) return cube2.material;
-		else if (objIdx == 5) return spot_lights[0].getcolor();					// if we add multiple light souce this would need to change
-		else if (objIdx == 6) return area_lights[0].getcolor();	// if we add multiple light souce this would need to change
+		uint Id = GetObjectIndex(objIdx);
+		if (Id == spotID) return spot_lights[0].getMaterial();					// if we add multiple light souce this would need to change
+		else if (objIdx == areaID) return area_lights[0].getMaterial();	// if we add multiple light souce this would need to change
+		uint type = GetObjectType(objIdx);
+		if (type == sphereID) return spherePool[Id]->material;
+		if (type == cubeID) return cubePool[Id]->material;
+		if (type == triangleID) return trianglePool[Id]->material;
+		if (type == meshID) return meshPool[Id]->material;
+		//uint objId = objIdx >> 20;
+		//if (objId == 0) throw exception("There's no material for nothing"); // or perhaps we should just crash
+		////if (objIdx == 0) return quad.material;
+		////if (objIdx == 0) return lightSphere.position; 
+		//else if (objIdx == 1) return sphere.material;
+		//else if (objIdx == 2) return sphere2.material;
+		//else if (objIdx == 3) return cube.material;
+		//else if (objIdx == 4) return cube2.material;
+		//else if (objIdx == 5) return spot_lights[0].getcolor();					// if we add multiple light souce this would need to change
+		//else if (objIdx == 6) return area_lights[0].getcolor();	// if we add multiple light souce this would need to change
 
-		else if (objIdx >= 10) return trianglePool[objIdx - 10]->material;
-		cout << objIdx << endl;
+		//else if (objIdx >= 10) return trianglePool[objIdx - 10]->material;
+		//cout << objIdx << endl;
 		throw exception("ID not known");
 	}
 
@@ -882,20 +930,23 @@ public:
 		return random_vec;
 	}
 
-	float3 directIllumination(int objIdx, float3 intersection, float3 norm, float3 albedo) {
-		if (objIdx == 6) { 
-			int i = 2;
-			return spot_lights[0].getcolor(); }
+	float3 directIllumination(Intersection& I, float3 intersection, float3 norm) {
+		uint objType = GetObjectType(I.instPrim);
+		uint objIdx = GetObjectIndex(I.instPrim);
+		float3 obj_Color = GetColor(I);
+		/*if (objIdx == 1000) { 
+			return spot_lights[0].getcolor(); }*/
+		
 		float3 color = (0, 0, 0);
 		for (int i = 0; i < size(spot_lights); i++) {
 			float3 dir_light = normalize(spot_lights[i].position - intersection);
 			float dot_p = dot(dir_light, norm);
-			float intensity = spot_lights[i].getLumen() / pow(length(spot_lights[i].position - intersection), 2);
+			float intensity = 1.0f / pow(length(spot_lights[i].position - intersection), 2);
 
 			// -----------------------------------------------------------
 			// regular
 			// -----------------------------------------------------------
-			color += intensity * albedo * maxFloat( dot_p, 0.0f); //
+			color += intensity * spot_lights[i].getcolor() * obj_Color * maxFloat( dot_p, 0.0f); //
 			//cout << "Color in directIlum: " << color.x << "|" << color.y << "|" << color.z << endl;
 		
 			// -----------------------------------------------------------
@@ -916,22 +967,10 @@ public:
 		}else{
 			area_lights[0].Intersect(ray);
 		}
-		sphere.Intersect( ray );
-		sphere2.Intersect( ray );
-		cube.Intersect( ray );
-		cube2.Intersect(ray);
-		for (int i = 0; i < (int)trianglePool.size(); i++) {
-			trianglePool[i]->Intersect(ray);
-		//sphere.Intersect( ray );
-		//sphere2.Intersect( ray );
-		//cube.Intersect( ray );
-		//cube2.Intersect(ray);
-		//for (int i = 0; i < (int)trianglePool.size(); i++) {
-		//	trianglePool[i]->Intersect(ray);
-		//}
-		for (RTXMesh* mesh : meshPool) {
-			mesh->Intersect(ray);
-		}
+		for (int i = 0; i < spherePool.size(); i++)	spherePool[i]->Intersect(ray);
+		for (int i = 0; i < cubePool.size(); i++) cubePool[i]->Intersect(ray);
+		for (Triangle* tri : trianglePool) tri->Intersect(ray);
+		for (RTXMesh* mesh : meshPool) 	mesh->Intersect(ray);
 		//if (ray.objIdx >= 10) cout << "Triangle hit: " << ray.objIdx << endl;
 	}
 	bool IsOccluded( Ray& ray ) const
@@ -939,14 +978,10 @@ public:
 		float rayLength = ray.I.t;
 		// skip planes: it is not possible for the walls to occlude anything
 		//quad.Intersect( ray );
-		sphere.Intersect( ray );
-		sphere2.Intersect( ray );
-		cube.Intersect( ray );
-		cube2.Intersect(ray);
-		for (int i = 0; i < (int)trianglePool.size(); i++) {
-			trianglePool[i]->Intersect(ray);
-		}
-		for (RTXMesh* mesh : meshPool) mesh->Intersect(ray);
+		for (int i = 0; i < spherePool.size(); i++)	spherePool[i]->Intersect(ray);
+		for (int i = 0; i < cubePool.size(); i++) cubePool[i]->Intersect(ray);
+		for (Triangle* tri : trianglePool) tri->Intersect(ray);
+		for (RTXMesh* mesh : meshPool) 	mesh->Intersect(ray);
 		return ray.I.t < rayLength;
 		// technically this is wasteful: 
 		// - we potentially search beyond rayLength
@@ -957,17 +992,21 @@ public:
 	{
 		// we get the normal after finding the nearest intersection:
 		// this way we prevent calculating it multiple times.
-		uint objId = Inters.instPrim >> 20;
-		if (objId == 0) throw exception("NOT ALLOWED");//return float3( 0 ); // or perhaps we should just crash
+		uint typeId = GetObjectType(Inters.instPrim);
+		uint objId = GetObjectIndex(Inters.instPrim);
+		if (objId == areaID || objId == spotID) throw exception("Normal of light not implemented.");
+		if (typeId == 6) throw exception("NOT ALLOWED");//return float3( 0 ); // or perhaps we should just crash
 		float3 N;
 		//if (objIdx == 0) N = quad.GetNormal(I);
-		if (objId == 1) N = lightSphere.GetNormal(I); // check objIDX to 2 from 0
+		//if (objId == 1) N = lightSphere.GetNormal(I); // check objIDX to 2 from 0
 		//if (objId == 2) N = sphere.GetNormal(I);
 		//else if (objId == 3) N = sphere2.GetNormal(I);
 		//else if (objId == 4) N = cube.GetNormal(I);
 		//else if (objId == 5) N = cube2.GetNormal(I);
-		else if (objId >= 10) N = trianglePool[objId - 10]->GetNormal();
-		else if (objId > 1) N = meshPool[objId - 2]->GetNormal(Inters);
+		if (typeId == sphereID) N = spherePool[objId]->GetNormal(I);
+		if (typeId == cubeID) N = cubePool[objId]->GetNormal(I);
+		if (typeId == triangleID) N = trianglePool[objId]->GetNormal();
+		if (typeId == meshID) N = meshPool[objId]->GetNormal(Inters);
 		//else 
 		//{
 		//	// faster to handle the 6 planes without a call to GetNormal
@@ -979,12 +1018,19 @@ public:
 	}
 
 	float3 GetColor(Intersection& I) {
-		uint objId = I.instPrim >> 20;
-		if (objId == 1) return lightSphere.material.albedo;
-		else if (objId > 1) 
-		{
-			return meshPool[objId - 2]->GetColor(I); 
+		uint typeId = GetObjectType(I.instPrim);
+		uint Id = GetObjectIndex(I.instPrim);
+		if (Id == areaID) return area_lights[0].getcolor();
+		if (Id == spotID) return spot_lights[0].getcolor();
+		if (typeId == sphereID) return spherePool[Id]->material.albedo;
+		if (typeId == cubeID) return cubePool[Id]->material.albedo;
+		if (typeId == triangleID) return trianglePool[Id]->material.albedo;
+		if (typeId == meshID) return meshPool[Id]->GetColor(I);
+		if (typeId == skyBoxID) {
+			cout << "Did not expect to reach this code." << endl;
+			return getSkyBox(float3(0, 1, 0));
 		}
+		throw exception("Unidentified type id in scene.GetColor()");
 	}
 
 	// Mesh loading using tutorial from learnopengl.com
@@ -997,12 +1043,13 @@ public:
 		}
 
 		processNode(scene->mRootNode, scene, file);
+		cout << "Model loaded. Mesh pool size: " << meshPool.size() << endl;
 	}
 
 	void processNode(aiNode* node, const aiScene* scene, const char* path) {
 		// process parent node
 		for (int i = 0; i < node->mNumMeshes; i++) {
-			int id = meshPool.size() + 2; //TODO: REMOVE THE START AT 2
+			int id = meshPool.size(); //TODO: REMOVE THE START AT 2
 			aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
 			meshPool.push_back(RTXMesh::makeMesh(mesh, scene, path, id));
 		}
@@ -1015,6 +1062,8 @@ public:
 	__declspec(align(64)) // start a new cacheline here
 	float animTime = 0;
 	const float ambient = 0.005;
+	const int spotID = 500;
+	const int areaID = 501;
 	//Quad quad;
 	//Light lights[1];
 	pointLight spot_lights[1];
@@ -1022,15 +1071,8 @@ public:
 
 	pointLight lightSphere;
 
-	Sphere sphere;
-	Sphere sphere2;
-	Cube cube;
-	Cube cube2;
-
 	//Plane plane[6];
 	static inline vector<Triangle*> trianglePool;
-
-
 	static inline vector<Sphere*> spherePool;
 	static inline vector<Cube*> cubePool;
 	static inline vector<RTXMesh*> meshPool;

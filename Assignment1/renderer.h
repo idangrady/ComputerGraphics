@@ -1,5 +1,4 @@
 #pragma once
-#define STATIC 0
 #include<config.h>
 namespace Tmpl8
 {
