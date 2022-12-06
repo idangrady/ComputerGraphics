@@ -292,7 +292,7 @@ float3 Tmpl8::Renderer::RE(float3 N, Ray& ray, Material& m, bool hit_back)
 			return Trace(ray.Reflect(I_loc, N));
 		}
 		else if(ray.depthidx <= max_depth){ // Randomly diffuse
-			float3 BRDF_m = m.albedo; // I deleted the PI because it was cancalled in the return * PI 
+			float3 BRDF_m = scene.GetColor(ray.I); // I deleted the PI because it was cancalled in the return * PI 
 			float3 random_dir = scene.GetDiffuseRefelectDir(N);
 			Ray newRay(I_loc + 0.0002f * random_dir, random_dir, 1e34f, ray.depthidx + 1); //+ 0.0002f * random_dir
 			float3 EI = Trace(newRay) * dot(N, random_dir);
