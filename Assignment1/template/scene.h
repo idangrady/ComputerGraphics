@@ -159,9 +159,23 @@ public:
 	{
 		return (I - this->pos) * invr;
 	}
-	float3 GetAlbedo() const
+	float3 GetAlbedo(const float3 I, Surface* texture) const
 	{
-		return material.albedo;
+		float3 dir = (I - this->pos) * invr;
+		float phi = atan2f(dir.x, dir.z);
+		float theta = atan2f(hypotf(dir.x, dir.z), dir.y);
+		if (phi < 0) phi += 2.0f * PI;
+		if (theta < 0) throw exception("Negative theta?");
+		float x = phi / (2.0f * PI);
+		float y = theta / PI;
+		int x_ = (int)(x * texture->width);
+		int y_ = (int)(y * texture->height);
+		uint texel = texture->pixels[x_ + y_ * texture->width];
+		unsigned char r = (texel >> 16);
+		unsigned char g = (texel >> 8);
+		unsigned char b = texel;
+		return float3(r / 255.f, g / 255.f, b / 255.f);
+
 	}
 	float3 pos = 0;
 	float r2 = 0, invr = 0;
@@ -260,13 +274,41 @@ public:
 		tmin = max( tmin, tzmin ), tmax = min( tmax, tzmax );
 		if (tmin > 0)
 		{
-			if (tmin < ray.I.t) ray.I.t = tmin, ray.I.instPrim = Tmpl8::MakeID(cubeID, objIdx, 0);;
+			if (tmin < ray.I.t) {
+				float3 I = ray.O + ray.D * tmin;
+				float2 uv = GetTexCoordinates(I);
+				ray.I.t = tmin, ray.I.instPrim = Tmpl8::MakeID(cubeID, objIdx, 0), ray.I.u = uv.x, ray.I.v = uv.y;
+			}
 		}
 		else if (tmax > 0)
 		{
-			if (tmax < ray.I.t) ray.I.t = tmax, ray.I.instPrim = Tmpl8::MakeID(cubeID, objIdx, 0);;
+			if (tmax < ray.I.t) 
+			{
+				float3 I = ray.O + ray.D * tmax;
+				float2 uv = GetTexCoordinates(I);
+				ray.I.t = tmax, ray.I.instPrim = Tmpl8::MakeID(cubeID, objIdx, 0), ray.I.u = uv.x, ray.I.v = uv.y;
+			}
 		}
 	}
+
+	float2 GetTexCoordinates(const float3 I) const {
+		// Get intersection in local space
+		float3 objI = TransformPosition(I, invM);
+		const float3 invSize = 1.0 / length(b[0] - b[1]);
+		float2 uv;
+		float d0 = fabs(objI.x - b[0].x), d1 = fabs(objI.x - b[1].x);
+		float d2 = fabs(objI.y - b[0].y), d3 = fabs(objI.y - b[1].y);
+		float d4 = fabs(objI.z - b[0].z), d5 = fabs(objI.z - b[1].z);
+		float minDist = d0;
+		uv = (objI.y * invSize.y, objI.z * invSize.z);
+		if (d1 < minDist) { minDist = d1, uv = (1.0f - objI.y * invSize.y, 1.0f - objI.z * invSize.z); }
+		if (d2 < minDist) { minDist = d2, uv = (objI.x * invSize.x, objI.z * invSize.z);}
+		if (d3 < minDist) { minDist = d3, uv = (1.0f - objI.y * invSize.y, 1.0f - objI.z * invSize.z);}
+		if (d4 < minDist) { minDist = d4, uv = (objI.x * invSize.x, objI.y * invSize.y); }
+		if (d5 < minDist) { minDist = d5, uv = (1.0f - objI.x * invSize.x, 1.0f - objI.y * invSize.y); }
+		return uv;
+	}
+
 	float3 GetNormal( const float3 I ) const
 	{
 		// transform intersection point to object space
@@ -293,6 +335,25 @@ public:
 		0.2, //specularity
 		Medium::Undefined, //medium
 	};
+};
+
+// -----------------------------------------------------------
+// Smaller Triangle struct for use in Mesh
+// Perhaps this is stupid.
+// -----------------------------------------------------------
+__declspec(align(64)) struct Tri {
+	float3 vertex0, vertex1, vertex2;
+	float3 centroid;
+};
+
+
+// -----------------------------------------------------------
+// Holds Tri data for texturing and shading
+// This is 
+// -----------------------------------------------------------
+__declspec(align(64)) struct TriEx {
+	float2 uv0, uv1, uv2;
+	float3 N0, N1, N2;
 };
 
 // -----------------------------------------------------------
@@ -330,9 +391,25 @@ public:
 		const float t = f * dot(edge2, q);
 		if (t > 0.0001f && t < ray.I.t) {
 			ray.I.t = t;
+			ray.I.u = u;
+			ray.I.v = v;
 			ray.I.instPrim = Tmpl8::MakeID(triangleID, objIdx, 0);;
 		}
 	}
+
+	float3 GetAlbedo(Intersection& I, Surface* texture, TriEx* triEx) {
+		float2 uv = I.u * triEx->uv1 + I.v * triEx->uv2 + (1.0f - (I.u + I.v)) * triEx->uv0;
+		int iu = (int)(uv.x * texture->width) % texture->width;
+		int iv = (int)(uv.y * texture->height) % texture->height;
+		uint texel = texture->pixels[iu + iv * texture->width];
+		//cout << "Texture pixel found: " << texbit << endl;
+		unsigned char x = (texel >> 16);
+		unsigned char y = (texel >> 8);
+		unsigned char z = texel;
+		float3 returnval(x / 255.f, y / 255.f, z / 255.f);
+		return returnval;
+	}
+
 	float3 GetNormal() const 
 	{
 		return normal;
@@ -411,25 +488,6 @@ public:
 	uint8_t getIdx() const { return idx; };
 	float getLumen() const { return lumen; };
 
-};
-
-// -----------------------------------------------------------
-// Smaller Triangle struct for use in Mesh
-// Perhaps this is stupid.
-// -----------------------------------------------------------
-__declspec(align(64)) struct Tri {
-	float3 vertex0, vertex1, vertex2;
-	float3 centroid;
-};
-
-
-// -----------------------------------------------------------
-// Holds Tri data for texturing and shading
-// This is 
-// -----------------------------------------------------------
-__declspec(align(64)) struct TriEx {
-	float2 uv0, uv1, uv2;
-	float3 N0, N1, N2;
 };
 
 // -----------------------------------------------------------
@@ -908,6 +966,14 @@ public:
 		return float3(r, g , b);
 	}
 
+	float2 CartesianToUV(float3 dir) {
+
+	}
+
+	float3 GetTextureColor(uint id) {
+
+	}
+
 	float3 GetLightPos(int i = 0) const
 	{
 		// light point position is the middle of the swinging quad
@@ -1125,6 +1191,8 @@ public:
 	static inline vector<Cube*> cubePool;
 	static inline vector<Mesh*> meshPool;
 	static inline map<string, Material> materialMap;
+	static inline map<uint, Surface*> textureMap;
+	static inline map<uint, TriEx*> triExMap;;
 	//unsigned char* skybox;
 	float* skybox;
 	int width, height, nrChannels;
