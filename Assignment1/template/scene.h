@@ -275,37 +275,61 @@ public:
 		if (tmin > 0)
 		{
 			if (tmin < ray.I.t) {
-				float3 I = ray.O + ray.D * tmin;
-				float2 uv = GetTexCoordinates(I);
-				ray.I.t = tmin, ray.I.instPrim = Tmpl8::MakeID(cubeID, objIdx, 0), ray.I.u = uv.x, ray.I.v = uv.y;
+				if (isTextured) {
+					float3 I = ray.O + ray.D * tmin;
+					float2 uv = GetTexCoordinates(I);
+					ray.I.u = uv.x, ray.I.v = uv.y;
+				}
+				ray.I.t = tmin, ray.I.instPrim = Tmpl8::MakeID(cubeID, objIdx, 0);
 			}
 		}
 		else if (tmax > 0)
 		{
 			if (tmax < ray.I.t) 
 			{
-				float3 I = ray.O + ray.D * tmax;
-				float2 uv = GetTexCoordinates(I);
-				ray.I.t = tmax, ray.I.instPrim = Tmpl8::MakeID(cubeID, objIdx, 0), ray.I.u = uv.x, ray.I.v = uv.y;
+				if (isTextured) {
+					float3 I = ray.O + ray.D * tmax;
+					float2 uv = GetTexCoordinates(I);
+					ray.I.u = uv.x, ray.I.v = uv.y;
+				}
+				ray.I.t = tmax, ray.I.instPrim = Tmpl8::MakeID(cubeID, objIdx, 0);
 			}
 		}
+	}
+
+	float3 GetAlbedo(Intersection& I, Surface* texture) {
+		int x = (int)(I.u * texture->width);
+		int y = (int)(I.v * texture->height);
+		uint texel = texture->pixels[x + y * texture->width];
+		unsigned char r = (texel >> 16);
+		unsigned char g = (texel >> 8);
+		unsigned char b = texel;
+		return float3(r / 255.f, g / 255.f, b / 255.f);
 	}
 
 	float2 GetTexCoordinates(const float3 I) const {
 		// Get intersection in local space
 		float3 objI = TransformPosition(I, invM);
-		const float3 invSize = 1.0 / length(b[0] - b[1]);
+		const float3 sizeDiff = b[1] - b[0];
+		const float3 invSize = (abs(1 / sizeDiff.x), abs(1 / sizeDiff.y), abs(1 / sizeDiff.z));
 		float2 uv;
 		float d0 = fabs(objI.x - b[0].x), d1 = fabs(objI.x - b[1].x);
 		float d2 = fabs(objI.y - b[0].y), d3 = fabs(objI.y - b[1].y);
 		float d4 = fabs(objI.z - b[0].z), d5 = fabs(objI.z - b[1].z);
 		float minDist = d0;
-		uv = (objI.y * invSize.y, objI.z * invSize.z);
-		if (d1 < minDist) { minDist = d1, uv = (1.0f - objI.y * invSize.y, 1.0f - objI.z * invSize.z); }
-		if (d2 < minDist) { minDist = d2, uv = (objI.x * invSize.x, objI.z * invSize.z);}
-		if (d3 < minDist) { minDist = d3, uv = (1.0f - objI.y * invSize.y, 1.0f - objI.z * invSize.z);}
-		if (d4 < minDist) { minDist = d4, uv = (objI.x * invSize.x, objI.y * invSize.y); }
-		if (d5 < minDist) { minDist = d5, uv = (1.0f - objI.x * invSize.x, 1.0f - objI.y * invSize.y); }
+		uv = (objI.y * invSize.y + 0.5 * sizeDiff.y, objI.z * invSize.z + +0.5 * sizeDiff.z);
+		if (d1 < minDist) { minDist = d1, uv = (1.0f - uv.x, 1.0f - uv.y); }
+		//if(uv.x < 0.0 || uv.x > 1.0f || uv.y < 0.0 || uv.y > 1.0 ) cout << "1: " << uv.x << "|" << uv.y << endl;
+		if (d2 < minDist) { minDist = d2, uv = (objI.x * invSize.x + 0.5f * sizeDiff.x, objI.z * invSize.z + 0.5f * sizeDiff.z);}
+		//if (uv.x < 0.0 || uv.x > 1.0f || uv.y < 0.0 || uv.y > 1.0) cout << "2: " << uv.x << "|" << uv.y << endl;
+		if (d3 < minDist) { minDist = d3, uv = (1.0f - uv.x, 1.0f - uv.y); }
+		//if (uv.x < 0.0 || uv.x > 1.0f || uv.y < 0.0 || uv.y > 1.0) cout << "3: " << uv.x << "|" << uv.y << endl;
+		if (d4 < minDist) { minDist = d4, uv = (objI.x * invSize.x + 0.5f * sizeDiff.x, objI.y * invSize.y + 0.5f * sizeDiff.y); }
+		//if (uv.x < 0.0 || uv.x > 1.0f || uv.y < 0.0 || uv.y > 1.0) cout << "4: " << uv.x << "|" << uv.y << endl;
+		if (d5 < minDist) { minDist = d5, uv = (1.0f - uv.x, 1.0f - uv.y); }
+		//if (uv.x < 0.0 || uv.x > 1.0f || uv.y < 0.0 || uv.y > 1.0) cout << "5: " << uv.x << "|" << uv.y << endl;
+		uv.x = clamp(uv.x, 0.0001f, 0.9999f);
+		uv.y = clamp(uv.y, 0.0001f, 0.9999f);
 		return uv;
 	}
 
@@ -327,6 +351,7 @@ public:
 		// return normal in world space
 		return TransformVector( N, M );
 	}
+	bool isTextured = false;
 	float3 b[2];
 	mat4 M, invM;
 	uint objIdx = 0;
@@ -839,6 +864,8 @@ public:
 #else
 		// we store all primitives in one continuous buffer
 		Sphere* sphere = new Sphere(0, float3(0), 0.5f);					// 0: bouncing ball   0.5f
+		Surface* sphereTex = new Surface("assets/bricks.jpg");
+		textureMap.insert({ MakeID(sphereID, 0, 0), sphereTex });
 		spherePool.push_back(sphere);
 		Sphere* sphere2 = new Sphere(1, float3(0, -2.5f, -1.05f), 0.5f);	// 1: glass ball
 		sphere2->material.albedo = float3(0.2, 0.8, 0.2);
@@ -966,14 +993,6 @@ public:
 		return float3(r, g , b);
 	}
 
-	float2 CartesianToUV(float3 dir) {
-
-	}
-
-	float3 GetTextureColor(uint id) {
-
-	}
-
 	float3 GetLightPos(int i = 0) const
 	{
 		// light point position is the middle of the swinging quad
@@ -1046,7 +1065,7 @@ public:
 	float3 directIllumination(Intersection& I, float3 intersection, float3 norm) {
 		uint objType = GetObjectType(I.instPrim);
 		uint objIdx = GetObjectIndex(I.instPrim);
-		float3 obj_Color = GetColor(I);
+		float3 obj_Color = GetColor(I, intersection);
 		/*if (objIdx == 1000) { 
 			return spot_lights[0].getcolor(); }*/
 		
@@ -1131,14 +1150,27 @@ public:
 		return N;
 	}
 
-	float3 GetColor(Intersection& I) {
+	float3 GetColor(Intersection& I, float3 I_loc) {
 		uint typeId = GetObjectType(I.instPrim);
 		uint Id = GetObjectIndex(I.instPrim);
 		if (Id == areaID) return area_lights[0].getcolor();
 		if (Id == spotID) return spot_lights[0].getcolor();
-		if (typeId == sphereID) return spherePool[Id]->material.albedo;
-		if (typeId == cubeID) return cubePool[Id]->material.albedo;
-		if (typeId == triangleID) return trianglePool[Id]->material.albedo;
+		auto texture = textureMap.find(I.instPrim);
+		bool found = texture != textureMap.end();
+		if (typeId == sphereID)
+		{
+			if(found) return spherePool[Id]->GetAlbedo(I_loc, texture->second);
+			else return spherePool[Id]->material.albedo;
+		}
+		if (typeId == cubeID) 
+		{
+			if (found) return cubePool[Id]->GetAlbedo(I, texture->second);
+			else return cubePool[Id]->material.albedo;
+		}
+		if (typeId == triangleID) {
+			if (found && triExMap.find(Id) != triExMap.end()) return trianglePool[Id]->GetAlbedo(I, texture->second, triExMap[Id]);
+			else return trianglePool[Id]->material.albedo;
+		}
 		if (typeId == meshID) return meshPool[Id]->GetColor(I);
 		if (typeId == skyBoxID) {
 			cout << "Did not expect to reach this code." << endl;
