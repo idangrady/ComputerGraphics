@@ -21,6 +21,9 @@
     <ClInclude Include="config.h">
       <Filter>template</Filter>
     </ClInclude>
+    <ClInclude Include="bvh.h">
+      <Filter>template</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="template">
@@ -31,5 +34,6 @@
     <None Include="template\LICENSE">
       <Filter>template</Filter>
     </None>
+    <None Include="assimp-vc143-mt.dll" />
   </ItemGroup>
 </Project>

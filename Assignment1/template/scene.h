@@ -250,7 +250,8 @@ public:
 	Cube( uint idx, float3 pos, float3 size, mat4 transform = mat4::Identity() )
 	{
 		objIdx = idx;
-		b[0] = pos - 0.5f * size, b[1] = pos + 0.5f * size; //-
+		b[0] = pos - 0.5f * size, b[1] = pos + 0.5f * size; 
+		this->pos = pos;
 		M = transform, invM = transform.FastInvertedTransformNoScale();
 		
 	}
@@ -355,6 +356,7 @@ public:
 	float3 b[2];
 	mat4 M, invM;
 	uint objIdx = 0;
+	float3 pos;
 	Material material = {
 		float3(0, 1, 0), //albedo
 		0.2, //specularity
@@ -743,6 +745,68 @@ public:
 	bool normalMapLoaded = false;
 };
 
+
+class primitives
+{
+public:
+
+	float3 centroid;
+	uint8_t idx;
+	Triangle* trig;
+	Sphere* sph;
+	Cube* cube;
+	Mesh* mesh;
+	areaLight* areaL;
+	primitives() = default;
+	~primitives()
+	{
+		if (trig != NULL) delete trig;
+		if (sph != NULL) delete sph;
+		if (cube != NULL) delete cube;
+		if (mesh != NULL) delete mesh;
+		if (areaL != NULL) delete areaL;
+
+	};
+	primitives(Triangle* triangle) { idx = 1; this->trig = triangle; this->centroid = triangle->centroid; }
+	primitives(Sphere* sph) {
+		idx = 2; this->sph = sph; this->centroid = sph->pos;;
+	}
+	primitives(Cube* cube) {
+		idx = 3; this->cube = cube; this->centroid = cube->pos;
+	}
+	primitives(Mesh* mesh) { idx = 4; this->mesh = mesh; ;
+	}
+	primitives(areaLight* areaL) { idx = 5; this->areaL = areaL; this->centroid = (areaL->triangle_p1->centroid+ areaL->triangle_p2->centroid)*0.5f;
+	}
+
+	void Intersect(Ray& r)
+	{
+		if (idx == 1) {
+			trig->Intersect(r);
+		}
+		if (idx == 2) {
+			this->sph->Intersect(r);
+		}
+		if (idx == 3) {
+			this->cube->Intersect(r);
+		}
+		if (idx == 4) {
+			this->mesh->Intersect(r);
+		}
+		if (idx == 5) {
+			this->areaL->Intersect(r);
+		}
+	}
+
+
+};
+
+
+
+
+
+
+
 // -----------------------------------------------------------
 // Quad primitive
 // Oriented quad, intended to be used as a light source.
@@ -914,12 +978,6 @@ public:
 		floor_0->material.albedo = float3(0.2, 0.4, 0);
 		floor_1->material.albedo = float3(0.2, 0.4, 0);
 
-		//// area light
-		//Triangle* light_1 = new Triangle(float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), 13);
-		//Triangle* light_2 = new Triangle(float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5), 14);
-		//light_1->material.albedo = float3(1.0, 1.0, 1.0);
-		//light_2->material.albedo = float3(1.0, 1.0, 1.0);
-
 
 		trianglePool.push_back(triangle);
 		trianglePool.push_back(wall_l0);
@@ -935,21 +993,40 @@ public:
 		trianglePool.push_back(floor_0);
 		trianglePool.push_back(floor_1);
 
+
+
+		arrPrimitive[0] = new primitives(triangle);
+		arrPrimitive[1] = new primitives(wall_l0);
+		arrPrimitive[2] = new primitives(wall_l1);
+		arrPrimitive[3] = new primitives(wall_r0);
+		arrPrimitive[4] = new primitives(wall_r1);
+		arrPrimitive[5] = new primitives(wall_r_backdrop0);
+		arrPrimitive[6] = new primitives(wall_r_backdrop1);
+		arrPrimitive[7] = new primitives(ceiling_0);
+		arrPrimitive[8] = new primitives(ceiling_1);
+		arrPrimitive[9] = new primitives(wall_b0);
+		arrPrimitive[10] = new primitives(wall_b1);
+		arrPrimitive[11] = new primitives(floor_0);
+		arrPrimitive[12] = new primitives(floor_1);
+		arrPrimitive[13] = new primitives(wall_l1);
+		arrPrimitive[14] = new primitives(sphere);
+		arrPrimitive[15] = new primitives(sphere2);
+		arrPrimitive[16] = new primitives(cube);
+		arrPrimitive[17] = new primitives(cube2);
+
+
+
 		// Reserve object IDs for the lights
 		area_lights[0] = areaLight(24, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5));
 		spot_lights[0] = pointLight(24, float3(0, 1.5, 0.5), spotID);
+
+
+		arrPrimitive[18] = new primitives(new areaLight(24, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5)));
+
 #endif
 
 
-		
-
-		//lightSphere = L[0];
-
-
-
-		//trianglePool.push_back(light_1);
-		//trianglePool.push_back(light_2);
-
+	
 		SetTime( 0 );
 		// Note: once we have triangle support we should get rid of the class
 		// hierarchy: virtuals reduce performance somewhat.
@@ -1216,6 +1293,8 @@ public:
 	areaLight area_lights[1];
 
 	pointLight lightSphere;
+
+	primitives* arrPrimitive[20];
 
 	//Plane plane[6];
 	static inline vector<Triangle*> trianglePool;
