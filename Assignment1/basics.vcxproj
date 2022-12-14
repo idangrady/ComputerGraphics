@@ -129,6 +129,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="bvh.h" />
     <ClInclude Include="camera.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="renderer.h" />
@@ -138,7 +139,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="assimp-vc143-mt.dll" />
-    <None Include="lib\assimp\*"/>
+    <None Include="lib\assimp\*" />
     <None Include="template\LICENSE" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
