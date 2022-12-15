@@ -24,6 +24,8 @@ void Renderer::Init()
 	camera.move(float3(-3, 0, -4), 1.0f);
 	mat4 m = mat4::LookAt(camera.camPos, float3(0, -1, 0));
 	camera.matRotate(m);
+
+	//scene.bvh->BuildBVH();
 #endif
 }
 

@@ -29,7 +29,7 @@
 #define PLANE_Y(o,i) {if((t=-(ray.O.y+o)*ray.rD.y)<ray.I.t)ray.I.t=t,ray.objIdx=i;}
 #define PLANE_Z(o,i) {if((t=-(ray.O.z+o)*ray.rD.z)<ray.I.t)ray.I.t=t,ray.objIdx=i;}
 
-#define N_bvh 30
+#define N_bvh 13
 
 
 
@@ -109,6 +109,9 @@ public:
 		return Ray(I + (0.0002f * reflected), reflected, 1e34f, depthidx + 1);
 		
 	}
+
+	
+
 	// ray data
 #ifndef SPEEDTRIX
 	float3 O, D, rD;
@@ -879,19 +882,21 @@ public:
 	simpleBVH() = default;
 	~simpleBVH() {};
 
-	simpleBVH(primitives* arrPrimitive[])
+	simpleBVH(primitives* arrPrimitive[], bool build = true)
 	{
-		for (int i = N_bvh-1; i > 0; i--)
+		for (int i = N_bvh-1; i >= 0; i--)
 		{
 			// assigning the poiters for the 
 			this->arrPrimitive[i] = arrPrimitive[i];
+			bvhNode[i] = new BVHNode();
 			arrPrimitiveIdx[i] = i;
 		}
-		BuildBVH();
+		if(build) BuildBVH();
+
 	}
+
 	void BuildBVH()
 	{
-
 		// assign all triangles to root node
 		BVHNode& root = *bvhNode[rootNodeIdx];
 		root.leftFirst = 0;
@@ -900,7 +905,6 @@ public:
 		// subdivide recursively
 		Subdivide(rootNodeIdx);
 	}
-
 	void UpdateNodeBounds(uint nodeIdx)
 	{
 		BVHNode& node = *bvhNode[nodeIdx];
@@ -908,15 +912,26 @@ public:
 		node.aabbMax = float3(-1e30f);
 		for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
 		{
-			primitives& leafTri = *arrPrimitive[first + i];
-			node.aabbMin = fminf(node.aabbMin, leafTri.trig->vertex0);
-			node.aabbMin = fminf(node.aabbMin, leafTri.trig->vertex1);
-			node.aabbMin = fminf(node.aabbMin, leafTri.trig->vertex2);
-			node.aabbMax = fmaxf(node.aabbMax, leafTri.trig->vertex0);
-			node.aabbMax = fmaxf(node.aabbMax, leafTri.trig->vertex1);
-			node.aabbMax = fmaxf(node.aabbMax, leafTri.trig->vertex2);
+			primitives& leafprim = *arrPrimitive[first + i];
+			node.aabbMin = fminf(node.aabbMin, leafprim.trig->vertex0);
+			node.aabbMin = fminf(node.aabbMin, leafprim.trig->vertex1);
+			node.aabbMin = fminf(node.aabbMin, leafprim.trig->vertex2);
+			node.aabbMax = fmaxf(node.aabbMax, leafprim.trig->vertex0);
+			node.aabbMax = fmaxf(node.aabbMax, leafprim.trig->vertex1);
+			node.aabbMax = fmaxf(node.aabbMax, leafprim.trig->vertex2);
 		}
 	}
+	bool IntersectAABB(const Ray& ray, const float3 bmin, const float3 bmax)
+	{
+		float tx1 = (bmin.x - ray.O.x) / ray.D.x, tx2 = (bmax.x - ray.O.x) / ray.D.x;
+		float tmin = min(tx1, tx2), tmax = max(tx1, tx2);
+		float ty1 = (bmin.y - ray.O.y) / ray.D.y, ty2 = (bmax.y - ray.O.y) / ray.D.y;
+		tmin = max(tmin, min(ty1, ty2)), tmax = min(tmax, max(ty1, ty2));
+		float tz1 = (bmin.z - ray.O.z) / ray.D.z, tz2 = (bmax.z - ray.O.z) / ray.D.z;
+		tmin = max(tmin, min(tz1, tz2)), tmax = min(tmax, max(tz1, tz2));
+		return tmax >= tmin && tmin < ray.I.t&& tmax > 0;
+	}
+
 	void Subdivide(uint nodeIdx)
 	{
 		// terminate recursion
@@ -957,14 +972,31 @@ public:
 		Subdivide(rightChildIdx);
 	}
 
+	void IntersectBVH(Ray& ray, const uint nodeIdx)
+	{
+		BVHNode& node = *bvhNode[nodeIdx];
+		if (!IntersectAABB(ray, node.aabbMin, node.aabbMax)) return;
+		if (!node.triCount>0)
+		{
+			for (uint i = 0; i < node.triCount; i++) { 
+				arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]->Intersect(ray);
+			}
+				//*arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]->;
+				//IntersectTri(ray, arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]);
+		}
+		else
+		{
+			IntersectBVH(ray, node.leftFirst);
+			IntersectBVH(ray, node.leftFirst + 1);
+		}
+	}
+
 
 	BVHNode* bvhNode[N_bvh * 2 - 1];
 	uint rootNodeIdx = 0, nodesUsed = 1;
 	static inline BVHNode* pool[N_bvh];
 	static inline primitives* arrPrimitive[N_bvh];
 	int arrPrimitiveIdx[N_bvh];
-
-
 };
 
 
@@ -1125,6 +1157,8 @@ public:
 		arrPrimitive[11] = new primitives(floor_0);
 		arrPrimitive[12] = new primitives(floor_1);
 		arrPrimitive[13] = new primitives(wall_l1);
+
+
 		//arrPrimitive[14] = new primitives(sphere);
 		//arrPrimitive[15] = new primitives(sphere2);
 		//arrPrimitive[16] = new primitives(cube);
@@ -1137,7 +1171,11 @@ public:
 		spot_lights[0] = pointLight(24, float3(0, 1.5, 0.5), spotID);
 
 
-		arrPrimitive[18] = new primitives(new areaLight(24, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5)));
+		//arrPrimitive[18] = new primitives(new areaLight(24, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5)));
+
+
+		bvh = new simpleBVH(arrPrimitive);
+
 
 #endif
 
@@ -1293,10 +1331,12 @@ public:
 		}else{
 			area_lights[0].Intersect(ray);
 		}
-		for (int i = 0; i < spherePool.size(); i++)	spherePool[i]->Intersect(ray);
+
+		
+		/*for (int i = 0; i < spherePool.size(); i++)	spherePool[i]->Intersect(ray);
 		for (int i = 0; i < cubePool.size(); i++) cubePool[i]->Intersect(ray);
 		for (Triangle* tri : trianglePool) tri->Intersect(ray);
-		for (Mesh* mesh : meshPool) 	mesh->Intersect(ray);
+		for (Mesh* mesh : meshPool) 	mesh->Intersect(ray);*/
 		//if (ray.objIdx >= 10) cout << "Triangle hit: " << ray.objIdx << endl;
 	}
 	bool IsOccluded( Ray& ray ) const
@@ -1410,7 +1450,7 @@ public:
 	pointLight lightSphere;
 
 	primitives* arrPrimitive[N_bvh];
-	simpleBVH* bvh = new simpleBVH(arrPrimitive);
+	simpleBVH* bvh;// = new simpleBVH(arrPrimitive);
 
 
 	//Plane plane[6];
