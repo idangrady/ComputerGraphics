@@ -791,7 +791,8 @@ public:
 		if (areaL != NULL) delete areaL;
 
 	};
-	primitives(Triangle* triangle) { idx = 1; this->trig = triangle; this->centroid = triangle->centroid; }
+	primitives(Triangle* triangle) {
+		idx = 1; this->trig = triangle; this->centroid = triangle->centroid;}
 	primitives(Sphere* sph) {
 		idx = 2; this->sph = sph; this->centroid = sph->pos;;
 	}
@@ -803,8 +804,9 @@ public:
 	primitives(areaLight* areaL) { idx = 5; this->areaL = areaL; this->centroid = (areaL->triangle_p1->centroid+ areaL->triangle_p2->centroid)*0.5f;
 	}
 
-	void Intersect(Ray& r)
+	void primIntersect(Ray& r)
 	{
+
 		if (idx == 1) {
 			trig->Intersect(r);
 		}
@@ -821,8 +823,6 @@ public:
 			this->areaL->Intersect(r);
 		}
 	}
-
-
 };
 
 
@@ -976,10 +976,11 @@ public:
 	{
 		BVHNode& node = *bvhNode[nodeIdx];
 		if (!IntersectAABB(ray, node.aabbMin, node.aabbMax)) return;
-		if (!node.triCount>0)
+		if (node.triCount>0)
 		{
 			for (uint i = 0; i < node.triCount; i++) { 
-				arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]->Intersect(ray);
+
+				arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]->primIntersect(ray);
 			}
 				//*arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]->;
 				//IntersectTri(ray, arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]);
@@ -987,7 +988,7 @@ public:
 		else
 		{
 			IntersectBVH(ray, node.leftFirst);
-			IntersectBVH(ray, node.leftFirst + 1);
+			IntersectBVH(ray, node.leftFirst + 1); 
 		}
 	}
 
@@ -1331,7 +1332,7 @@ public:
 		}else{
 			area_lights[0].Intersect(ray);
 		}
-
+		bvh->IntersectBVH(ray,0);
 		
 		/*for (int i = 0; i < spherePool.size(); i++)	spherePool[i]->Intersect(ray);
 		for (int i = 0; i < cubePool.size(); i++) cubePool[i]->Intersect(ray);
