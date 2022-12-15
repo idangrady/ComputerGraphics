@@ -29,6 +29,10 @@
 #define PLANE_Y(o,i) {if((t=-(ray.O.y+o)*ray.rD.y)<ray.I.t)ray.I.t=t,ray.objIdx=i;}
 #define PLANE_Z(o,i) {if((t=-(ray.O.z+o)*ray.rD.z)<ray.I.t)ray.I.t=t,ray.objIdx=i;}
 
+#define N_bvh 30
+
+
+
 namespace Tmpl8 {
 	const uint sphereID = 0;
 	const uint cubeID = 1;
@@ -236,6 +240,23 @@ public:
 	uint objIdx = 0;
 	float3 color;
 };
+
+// -----------------------------------------------------------
+// Cube primitive
+// Oriented cube. Unsure if this will also work for rays that
+// start inside it; maybe not the best candidate for testing
+// dielectrics.
+// -----------------------------------------------------------
+
+
+
+struct BVHNode
+{
+	float3 aabbMin, aabbMax;
+	uint leftFirst, triCount;
+};
+
+
 
 // -----------------------------------------------------------
 // Cube primitive
@@ -803,10 +824,6 @@ public:
 
 
 
-
-
-
-
 // -----------------------------------------------------------
 // Quad primitive
 // Oriented quad, intended to be used as a light source.
@@ -852,6 +869,105 @@ public:
 	mat4 T, invT;
 	uint objIdx = 0;
 };
+
+
+
+class simpleBVH {
+
+public:
+
+	simpleBVH() = default;
+	~simpleBVH() {};
+
+	simpleBVH(primitives* arrPrimitive[])
+	{
+		for (int i = N_bvh-1; i > 0; i--)
+		{
+			// assigning the poiters for the 
+			this->arrPrimitive[i] = arrPrimitive[i];
+			arrPrimitiveIdx[i] = i;
+		}
+		BuildBVH();
+	}
+	void BuildBVH()
+	{
+
+		// assign all triangles to root node
+		BVHNode& root = *bvhNode[rootNodeIdx];
+		root.leftFirst = 0;
+		root.triCount = N_bvh;
+		UpdateNodeBounds(rootNodeIdx);
+		// subdivide recursively
+		Subdivide(rootNodeIdx);
+	}
+
+	void UpdateNodeBounds(uint nodeIdx)
+	{
+		BVHNode& node = *bvhNode[nodeIdx];
+		node.aabbMin = float3(1e30f);
+		node.aabbMax = float3(-1e30f);
+		for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
+		{
+			primitives& leafTri = *arrPrimitive[first + i];
+			node.aabbMin = fminf(node.aabbMin, leafTri.trig->vertex0);
+			node.aabbMin = fminf(node.aabbMin, leafTri.trig->vertex1);
+			node.aabbMin = fminf(node.aabbMin, leafTri.trig->vertex2);
+			node.aabbMax = fmaxf(node.aabbMax, leafTri.trig->vertex0);
+			node.aabbMax = fmaxf(node.aabbMax, leafTri.trig->vertex1);
+			node.aabbMax = fmaxf(node.aabbMax, leafTri.trig->vertex2);
+		}
+	}
+	void Subdivide(uint nodeIdx)
+	{
+		// terminate recursion
+		BVHNode& node = *bvhNode[nodeIdx];
+		if (node.triCount <= 2) return;
+		// determine split axis and position
+		float3 extent = node.aabbMax - node.aabbMin;
+		int axis = 0;
+		if (extent.y > extent.x) axis = 1;
+		if (extent.z > extent[axis]) axis = 2;
+		float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+		// in-place partition
+		int i = node.leftFirst;
+		int j = i + node.triCount - 1;
+		while (i <= j)
+		{
+			if (arrPrimitive[arrPrimitiveIdx[i]]->trig->centroid[axis] < splitPos)
+				i++;
+			else
+				swap(arrPrimitiveIdx[i], arrPrimitiveIdx[j--]);
+		}
+		// abort split if one of the sides is empty
+		int leftCount = i - node.leftFirst;
+		if (leftCount == 0 || leftCount == node.triCount) return;
+		// create child nodes
+		int leftChildIdx = nodesUsed++;
+		int rightChildIdx = nodesUsed++;
+		node.leftFirst = leftChildIdx;
+		bvhNode[leftChildIdx]->leftFirst = node.leftFirst;
+		bvhNode[leftChildIdx]->triCount = leftCount;
+		bvhNode[rightChildIdx]->leftFirst = i;
+		bvhNode[rightChildIdx]->triCount = node.triCount - leftCount;
+		node.triCount = 0;
+		UpdateNodeBounds(leftChildIdx);
+		UpdateNodeBounds(rightChildIdx);
+		// recurse
+		Subdivide(leftChildIdx);
+		Subdivide(rightChildIdx);
+	}
+
+
+	BVHNode* bvhNode[N_bvh * 2 - 1];
+	uint rootNodeIdx = 0, nodesUsed = 1;
+	static inline BVHNode* pool[N_bvh];
+	static inline primitives* arrPrimitive[N_bvh];
+	int arrPrimitiveIdx[N_bvh];
+
+
+};
+
+
 
 // -----------------------------------------------------------
 // Scene class
@@ -1009,10 +1125,10 @@ public:
 		arrPrimitive[11] = new primitives(floor_0);
 		arrPrimitive[12] = new primitives(floor_1);
 		arrPrimitive[13] = new primitives(wall_l1);
-		arrPrimitive[14] = new primitives(sphere);
-		arrPrimitive[15] = new primitives(sphere2);
-		arrPrimitive[16] = new primitives(cube);
-		arrPrimitive[17] = new primitives(cube2);
+		//arrPrimitive[14] = new primitives(sphere);
+		//arrPrimitive[15] = new primitives(sphere2);
+		//arrPrimitive[16] = new primitives(cube);
+		//arrPrimitive[17] = new primitives(cube2);
 
 
 
@@ -1291,10 +1407,11 @@ public:
 	//Light lights[1];
 	pointLight spot_lights[1];
 	areaLight area_lights[1];
-
 	pointLight lightSphere;
 
-	primitives* arrPrimitive[20];
+	primitives* arrPrimitive[N_bvh];
+	simpleBVH* bvh = new simpleBVH(arrPrimitive);
+
 
 	//Plane plane[6];
 	static inline vector<Triangle*> trianglePool;
