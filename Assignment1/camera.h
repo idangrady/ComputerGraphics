@@ -20,7 +20,6 @@ public:
 		viewWidth = aspect * h;
 
 
-
 		// setup a basic view frustum
 		camPos_start = float3(0, 0, -2);
 		startDir = float3(0, 0, 1);
