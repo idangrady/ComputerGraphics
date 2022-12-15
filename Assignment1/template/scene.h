@@ -29,7 +29,7 @@
 #define PLANE_Y(o,i) {if((t=-(ray.O.y+o)*ray.rD.y)<ray.I.t)ray.I.t=t,ray.objIdx=i;}
 #define PLANE_Z(o,i) {if((t=-(ray.O.z+o)*ray.rD.z)<ray.I.t)ray.I.t=t,ray.objIdx=i;}
 
-#define N_bvh 13
+#define N_bvh 14
 
 
 
@@ -804,7 +804,7 @@ public:
 	primitives(areaLight* areaL) { idx = 5; this->areaL = areaL; this->centroid = (areaL->triangle_p1->centroid+ areaL->triangle_p2->centroid)*0.5f;
 	}
 
-	void primIntersect(Ray& r)
+	void Intersect(Ray& r)
 	{
 
 		if (idx == 1) {
@@ -821,6 +821,36 @@ public:
 		}
 		if (idx == 5) {
 			this->areaL->Intersect(r);
+		}
+	}
+
+	aabb createAABB() 
+	{
+		if (idx == 1) {
+		}
+		if (idx == 2) {
+		}
+		if (idx == 3) {
+		}
+		if (idx == 4) {
+		}
+		if (idx == 5) {
+		}
+	}
+
+	float3 getCentroid()
+	{
+		if (idx == 1) {
+			return trig->centroid;
+		}
+		if (idx == 2) {
+			return sph->pos;
+		}
+		if (idx == 3) {
+		}
+		if (idx == 4) {
+		}
+		if (idx == 5) {
 		}
 	}
 };
@@ -980,7 +1010,7 @@ public:
 		{
 			for (uint i = 0; i < node.triCount; i++) { 
 
-				arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]->primIntersect(ray);
+				arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]->Intersect(ray);
 			}
 				//*arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]->;
 				//IntersectTri(ray, arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]);
@@ -1128,19 +1158,19 @@ public:
 		floor_1->material.albedo = float3(0.2, 0.4, 0);
 
 
-		trianglePool.push_back(triangle);
-		trianglePool.push_back(wall_l0);
-		trianglePool.push_back(wall_l1);
-		trianglePool.push_back(wall_r0);
-		trianglePool.push_back(wall_r1);
-		trianglePool.push_back(wall_r_backdrop0);
-		trianglePool.push_back(wall_r_backdrop1);
-		trianglePool.push_back(ceiling_0);
-		trianglePool.push_back(ceiling_1);
-		trianglePool.push_back(wall_b0);
-		trianglePool.push_back(wall_b1);
-		trianglePool.push_back(floor_0);
-		trianglePool.push_back(floor_1);
+		//trianglePool.push_back(triangle);
+		//trianglePool.push_back(wall_l0);
+		//trianglePool.push_back(wall_l1);
+		//trianglePool.push_back(wall_r0);
+		//trianglePool.push_back(wall_r1);
+		//trianglePool.push_back(wall_r_backdrop0);
+		//trianglePool.push_back(wall_r_backdrop1);
+		//trianglePool.push_back(ceiling_0);
+		//trianglePool.push_back(ceiling_1);
+		//trianglePool.push_back(wall_b0);
+		//trianglePool.push_back(wall_b1);
+		//trianglePool.push_back(floor_0);
+		//trianglePool.push_back(floor_1);
 
 
 
@@ -1165,15 +1195,11 @@ public:
 		//arrPrimitive[16] = new primitives(cube);
 		//arrPrimitive[17] = new primitives(cube2);
 
-
-
 		// Reserve object IDs for the lights
 		area_lights[0] = areaLight(24, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5));
 		spot_lights[0] = pointLight(24, float3(0, 1.5, 0.5), spotID);
 
-
-		//arrPrimitive[18] = new primitives(new areaLight(24, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5)));
-
+		//arrPrimitive[14] = new primitives(new areaLight(24, areaID, float3(1.5, 2.9, 1.5), float3(-1.5, 2.9, 1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, -1.5), float3(1.5, 2.9, -1.5), float3(-1.5, 2.9, 1.5)));
 
 		bvh = new simpleBVH(arrPrimitive);
 
@@ -1240,10 +1266,14 @@ public:
 		if (Id == spotID) return spot_lights[0].getMaterial();					// if we add multiple light souce this would need to change
 		else if (objIdx == areaID) return area_lights[0].getMaterial();	// if we add multiple light souce this would need to change
 		uint type = GetObjectType(objIdx);
-		if (type == sphereID) return spherePool[Id]->material;
-		if (type == cubeID) return cubePool[Id]->material;
-		if (type == triangleID) return trianglePool[Id]->material;
-		if (type == meshID) return meshPool[Id]->material;
+		//if (type == sphereID) return spherePool[Id]->material;
+		//if (type == cubeID) return cubePool[Id]->material;
+
+		if (type == triangleID) return bvh->arrPrimitive[Id]->trig->material;
+
+		//if (type == meshID) return meshPool[Id]->material;
+
+
 		//uint objId = objIdx >> 20;
 		//if (objId == 0) throw exception("There's no material for nothing"); // or perhaps we should just crash
 		////if (objIdx == 0) return quad.material;
@@ -1345,10 +1375,13 @@ public:
 		float rayLength = ray.I.t;
 		// skip planes: it is not possible for the walls to occlude anything
 		//quad.Intersect( ray );
-		for (int i = 0; i < spherePool.size(); i++)	spherePool[i]->Intersect(ray);
-		for (int i = 0; i < cubePool.size(); i++) cubePool[i]->Intersect(ray);
-		for (Triangle* tri : trianglePool) tri->Intersect(ray);
-		for (Mesh* mesh : meshPool) 	mesh->Intersect(ray);
+		//for (int i = 0; i < spherePool.size(); i++)	spherePool[i]->Intersect(ray);
+		//for (int i = 0; i < cubePool.size(); i++) cubePool[i]->Intersect(ray);
+		//for (Triangle* tri : trianglePool) tri->Intersect(ray);
+		//for (Mesh* mesh : meshPool) 	mesh->Intersect(ray);
+		for (int i = 0; i < N_bvh; i++) {
+			arrPrimitive[i]->Intersect(ray);
+		}
 		return ray.I.t < rayLength;
 		// technically this is wasteful: 
 		// - we potentially search beyond rayLength
@@ -1370,10 +1403,10 @@ public:
 		//else if (objId == 3) N = sphere2.GetNormal(I);
 		//else if (objId == 4) N = cube.GetNormal(I);
 		//else if (objId == 5) N = cube2.GetNormal(I);
-		if (typeId == sphereID) N = spherePool[objId]->GetNormal(I);
-		if (typeId == cubeID) N = cubePool[objId]->GetNormal(I);
-		if (typeId == triangleID) N = trianglePool[objId]->GetNormal();
-		if (typeId == meshID) N = meshPool[objId]->GetNormal(Inters);
+		//if (typeId == sphereID) N = spherePool[objId]->GetNormal(I);
+		//if (typeId == cubeID) N = cubePool[objId]->GetNormal(I);
+		if (typeId == triangleID) N = bvh->arrPrimitive[objId]->trig->GetNormal();//trianglePool[objId]->GetNormal();
+		//if (typeId == meshID) N = meshPool[objId]->GetNormal(Inters);
 		//else 
 		//{
 		//	// faster to handle the 6 planes without a call to GetNormal
@@ -1402,8 +1435,8 @@ public:
 			else return cubePool[Id]->material.albedo;
 		}
 		if (typeId == triangleID) {
-			if (found && triExMap.find(Id) != triExMap.end()) return trianglePool[Id]->GetAlbedo(I, texture->second, triExMap[Id]);
-			else return trianglePool[Id]->material.albedo;
+			if (found && triExMap.find(Id) != triExMap.end()) return bvh->arrPrimitive[Id]->trig->GetAlbedo(I, texture->second, triExMap[Id]);
+			else return bvh->arrPrimitive[Id]->trig->material.albedo;
 		}
 		if (typeId == meshID) return meshPool[Id]->GetColor(I);
 		if (typeId == skyBoxID) {
