@@ -759,7 +759,7 @@ public:
 	//float3 centroid;
 	uint8_t primidx;
 	Triangle* trig;
-	Sphere* sph;
+	Sphere* sphere;
 	Cube* cube;
 	Mesh* mesh;
 	areaLight* areaL;
@@ -770,7 +770,7 @@ public:
 	~Primitives()
 	{
 		if (trig != NULL) delete trig;
-		if (sph != NULL) delete sph;
+		if (sphere != NULL) delete sphere;
 		if (cube != NULL) delete cube;
 		if (mesh != NULL) delete mesh;
 		if (areaL != NULL) delete areaL;
@@ -780,7 +780,7 @@ public:
 		primidx = 1; this->trig = triangle; this->material = triangle->material;
 	}
 	Primitives(Sphere* sph) {
-		primidx = 2; this->sph = sph; this->material = sph->material;
+		primidx = 2; this->sphere = sph; this->material = sph->material;
 	}
 	Primitives(Cube* cube) {
 		primidx = 3; this->cube = cube; this->material = cube->material; 
@@ -794,10 +794,10 @@ public:
 	void Intersect(Ray& r)
 	{
 		if (primidx == 1) {
-			trig->Intersect(r);
+			this->trig->Intersect(r);
 		}
 		if (primidx == 2) {
-			this->sph->Intersect(r);
+			this->sphere->Intersect(r);
 		}
 		if (primidx == 3) {
 			this->cube->Intersect(r);
@@ -816,6 +816,7 @@ public:
 		float3 aabbMax = float3(-1e30f);
 
 		if (primidx == 1) {
+			// Triangle
 				aabbMin = fminf(aabbMin, trig->vertex0);
 				aabbMin = fminf(aabbMin, trig->vertex1);
 				aabbMin = fminf(aabbMin, trig->vertex2);
@@ -824,17 +825,19 @@ public:
 				aabbMax = fmaxf(aabbMax, trig->vertex2);
 		}
 		else if (primidx == 2) {
-			auto radius = sph->r2;
+			// sphere
+			auto radius = sphere->r2;
 			aabbMin = getCentroid() - float3(radius, radius, radius);
 			aabbMax = getCentroid() + float3(radius, radius, radius);
 		}
 		else if (primidx == 3) {
+			// Cube
 			aabbMin = cube->b[0];
 			aabbMax = cube->b[1];
 		}
-		//vector<TriEx> triEx;
 
 		else if (primidx == 4) {
+			// Mesh
 			for (const Tri& vertex : mesh->tri)
 			{
 				aabbMin = fminf(aabbMin, vertex.vertex0);
@@ -848,6 +851,7 @@ public:
 
 		}
 		else if (primidx == 5) {
+			// AreaLight
 		}
 
 		return std::make_pair(aabbMin, aabbMax);
@@ -855,16 +859,18 @@ public:
 
 	float3 getCentroid()
 	{
+		// get centroid from objects based on Idx
 		if (primidx == 1) {
 			return trig->centroid;
 		}
 		if (primidx == 2) {
-			return sph->pos;
+			return sphere->pos;
 		}
 		if (primidx == 3) {
 			return cube->pos;
 		}
 		if (primidx == 4) {
+			// Mesh
 			float3 centroid = float3(0.0f);
 			for (const Tri& triangle : mesh->tri)
 			{
@@ -937,9 +943,7 @@ public:
 
 
 class simpleBVH {
-
 public:
-
 	simpleBVH() = default;
 	~simpleBVH() {};
 
@@ -1014,15 +1018,18 @@ public:
 		// abort split if one of the sides is empty
 		int leftCount = i - node.leftFirst;
 		if (leftCount == 0 || leftCount == node.triCount) return;
+
+		//------------------------------------------------------------------Start here ---Check this part please
 		// create child nodes
 		int leftChildIdx = nodesUsed++;
 		int rightChildIdx = nodesUsed++;
 		node.leftFirst = leftChildIdx;
 		bvhNode[leftChildIdx]->leftFirst = node.leftFirst;
 		bvhNode[leftChildIdx]->triCount = leftCount;
-		bvhNode[rightChildIdx]->leftFirst = i;
+		bvhNode[rightChildIdx]->leftFirst = i ;								// This is a problem here. if you change i to node.leftFirst , you would get different output. I am not sure 
 		bvhNode[rightChildIdx]->triCount = node.triCount - leftCount;
 		node.triCount = 0;
+		//------------------------------------------------------------------Until here Check this part please
 		UpdateNodeBounds(leftChildIdx);
 		UpdateNodeBounds(rightChildIdx);
 		// recurse
@@ -1174,25 +1181,26 @@ public:
 		floor_0->material.albedo = float3(0.2, 0.4, 0);
 		floor_1->material.albedo = float3(0.2, 0.4, 0);
 
+		int idx_add_ = 0;									// as we use the same indexing, this idx_add_ would be replaced by simply pushing to the array after init. yet for dev its easier to seperate
 
-		arrPrimitive[0] = new Primitives(sphere);
-		arrPrimitive[1] = new Primitives(sphere2);
-		arrPrimitive[2] = new Primitives(cube);
-		arrPrimitive[3] = new Primitives(cube2);
+		arrPrimitive[idx_add_++] = new Primitives(sphere);
+		arrPrimitive[idx_add_++] = new Primitives(sphere2);
+		arrPrimitive[idx_add_++] = new Primitives(cube);
+		arrPrimitive[idx_add_++] = new Primitives(cube2);
 
-		arrPrimitive[4] = new Primitives(triangle);
-		arrPrimitive[5] = new Primitives(wall_l0);
-		arrPrimitive[6] = new Primitives(wall_l1);
-		arrPrimitive[7] = new Primitives(wall_r0);
-		arrPrimitive[8] = new Primitives(wall_r1);
-		arrPrimitive[9] = new Primitives(wall_r_backdrop0);
-		arrPrimitive[10] = new Primitives(wall_r_backdrop1);
-		arrPrimitive[11] = new Primitives(ceiling_0);
-		arrPrimitive[12] = new Primitives(ceiling_1);
-		arrPrimitive[13] = new Primitives(wall_b0);
-		arrPrimitive[14] = new Primitives(wall_b1);
-		arrPrimitive[15] = new Primitives(floor_0);
-		arrPrimitive[16] = new Primitives(floor_1);
+		arrPrimitive[idx_add_++] = new Primitives(triangle);
+		arrPrimitive[idx_add_++] = new Primitives(wall_l0);
+		arrPrimitive[idx_add_++] = new Primitives(wall_l1);
+		arrPrimitive[idx_add_++] = new Primitives(wall_r0);
+		arrPrimitive[idx_add_++] = new Primitives(wall_r1);
+		arrPrimitive[idx_add_++] = new Primitives(wall_r_backdrop0);
+		arrPrimitive[idx_add_++] = new Primitives(wall_r_backdrop1);
+		arrPrimitive[idx_add_++] = new Primitives(ceiling_0);
+		arrPrimitive[idx_add_++] = new Primitives(ceiling_1);
+		arrPrimitive[idx_add_++] = new Primitives(wall_b0);
+		arrPrimitive[idx_add_++] = new Primitives(wall_b1);
+		arrPrimitive[idx_add_++] = new Primitives(floor_0);
+		arrPrimitive[idx_add_++] = new Primitives(floor_1);
 
 
 		// Reserve object IDs for the lights
@@ -1200,8 +1208,6 @@ public:
 		spot_lights[0] = pointLight(24, float3(0, 1.5, 0.5), spotID);
 
 		bvh = new simpleBVH(arrPrimitive);
-
-
 #endif
 
 
@@ -1378,9 +1384,9 @@ public:
 		if (objId == areaID || objId == spotID) throw exception("Normal of light not implemented.");
 		if (typeId == 6) throw exception("NOT ALLOWED");//return float3( 0 ); // or perhaps we should just crash
 		float3 N;
-		if (typeId == sphereID) N = bvh->arrPrimitive[objId]->sph->GetNormal(I);
+		if (typeId == sphereID) N = bvh->arrPrimitive[objId]->sphere->GetNormal(I);
 		if (typeId == cubeID) N = bvh->arrPrimitive[objId]->cube->GetNormal(I);
-		if (typeId == triangleID) N = bvh->arrPrimitive[objId]->trig->GetNormal();//trianglePool[objId]->GetNormal();
+		if (typeId == triangleID) N = bvh->arrPrimitive[objId]->trig->GetNormal();
 		if (typeId == meshID) N = bvh->arrPrimitive[objId]->mesh->GetNormal(Inters);
 		//else 
 		//{
@@ -1401,7 +1407,7 @@ public:
 		bool found = texture != textureMap.end();
 		if (typeId == sphereID)
 		{
-			if(found) return bvh->arrPrimitive[Id]->sph->GetAlbedo(I_loc, texture->second);
+			if(found) return bvh->arrPrimitive[Id]->sphere->GetAlbedo(I_loc, texture->second);
 			else return bvh->arrPrimitive[Id]->material.albedo;
 		}
 		if (typeId == cubeID) 
@@ -1413,7 +1419,7 @@ public:
 			if (found && triExMap.find(Id) != triExMap.end()) return bvh->arrPrimitive[Id]->trig->GetAlbedo(I, texture->second, triExMap[Id]);
 			else return bvh->arrPrimitive[Id]->trig->material.albedo;
 		}
-		if (typeId == meshID) return meshPool[Id]->GetColor(I);
+		if (typeId == meshID ) return bvh->arrPrimitive[Id]->mesh->GetColor(I); 
 		if (typeId == skyBoxID) {
 			cout << "Did not expect to reach this code." << endl;
 			return getSkyBox(float3(0, 1, 0));
@@ -1429,7 +1435,6 @@ public:
 			cout << "Error loading Mesh: " << importer.GetErrorString() << endl;
 			return;
 		}
-
 		processNode(scene->mRootNode, scene, file);
 		cout << "Model loaded. Mesh pool size: " << meshPool.size() << endl;
 	}
@@ -1452,8 +1457,7 @@ public:
 	const float ambient = 0.005;
 	const int spotID = 500;
 	const int areaID = 501;
-	//Quad quad;
-	//Light lights[1];
+
 	pointLight spot_lights[1];
 	areaLight area_lights[1];
 	pointLight lightSphere;
@@ -1462,7 +1466,7 @@ public:
 	simpleBVH* bvh;
 
 
-	static inline vector<Mesh*> meshPool;
+	static inline vector<Mesh*> meshPool;				// this should be moved to arrPrimitive
 	static inline map<string, Material> materialMap;
 	static inline map<uint, Surface*> textureMap;
 	static inline map<uint, TriEx*> triExMap;;
