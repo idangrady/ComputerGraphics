@@ -133,6 +133,7 @@
     <ClInclude Include="camera.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="renderer.h" />
+    <ClInclude Include="simpleBVH.h" />
     <ClInclude Include="template\common.h" />
     <ClInclude Include="template\precomp.h" />
     <ClInclude Include="template\scene.h" />
