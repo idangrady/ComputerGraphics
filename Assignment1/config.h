@@ -1,5 +1,5 @@
 #pragma once
-#define STATIC 1
+#define STATIC 0
 #define PRETTY 0
 
 bool sendWhittedCONFIG = false; 
