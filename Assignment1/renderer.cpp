@@ -109,7 +109,6 @@ void Renderer::Tick(float deltaTime)
 			screen->pixels[dest + x] = RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
 #endif
 		}
-	
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
