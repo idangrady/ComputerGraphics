@@ -843,7 +843,6 @@ public:
 				aabbMin = fminf(aabbMin, vertex.vertex0);
 				aabbMin= fminf(aabbMin, vertex.vertex1);
 				aabbMin = fminf(aabbMin, vertex.vertex2);
-
 				aabbMax= fmaxf(aabbMax, vertex.vertex0);
 				aabbMax= fmaxf(aabbMax, vertex.vertex1);
 				aabbMax= fmaxf(aabbMax, vertex.vertex2);
@@ -852,6 +851,8 @@ public:
 		}
 		else if (primidx == 5) {
 			// AreaLight
+		}
+		else { cout << " Return Unkown idx" << endl;
 		}
 
 		return std::make_pair(aabbMin, aabbMax);
@@ -956,7 +957,7 @@ public:
 			bvhNode[i] = new BVHNode();
 			arrPrimitiveIdx[i] = i;
 		}
-		if(build) BuildBVH();
+		//if(build) BuildBVH();
 
 	}
 
@@ -978,7 +979,8 @@ public:
 		node.aabbMax = float3(-1e30f);
 		for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
 		{
-			pair<float3, float3> aabb_minMax = arrPrimitive[first + i]->createAABB();
+			
+			pair<float3, float3> aabb_minMax = arrPrimitive[arrPrimitiveIdx[first + i]]->createAABB();
 			node.aabbMin = fminf(node.aabbMin, aabb_minMax.first);
 			node.aabbMax = fmaxf(node.aabbMax, aabb_minMax.second);
 		}
@@ -998,7 +1000,7 @@ public:
 	{
 		// terminate recursion
 		BVHNode& node = *bvhNode[nodeIdx];
-		if (node.triCount <= 2) return;
+		if (node.triCount <= 1) return;
 		// determine split axis and position
 		float3 extent = node.aabbMax - node.aabbMin;
 		int axis = 0;
@@ -1021,15 +1023,16 @@ public:
 
 		//------------------------------------------------------------------Start here ---Check this part please
 		// create child nodes
+
+// create child nodes	
 		int leftChildIdx = nodesUsed++;
 		int rightChildIdx = nodesUsed++;
-		node.leftFirst = leftChildIdx;
 		bvhNode[leftChildIdx]->leftFirst = node.leftFirst;
 		bvhNode[leftChildIdx]->triCount = leftCount;
-		bvhNode[rightChildIdx]->leftFirst = i ;								// This is a problem here. if you change i to node.leftFirst , you would get different output. I am not sure 
+		bvhNode[rightChildIdx]->leftFirst = i;
 		bvhNode[rightChildIdx]->triCount = node.triCount - leftCount;
+		node.leftFirst = leftChildIdx;
 		node.triCount = 0;
-		//------------------------------------------------------------------Until here Check this part please
 		UpdateNodeBounds(leftChildIdx);
 		UpdateNodeBounds(rightChildIdx);
 		// recurse
@@ -1044,7 +1047,6 @@ public:
 		if (node.triCount>0)
 		{
 			for (uint i = 0; i < node.triCount; i++) { 
-
 				arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]->Intersect(ray);
 			}
 		}
@@ -1058,9 +1060,9 @@ public:
 
 	BVHNode* bvhNode[N_bvh * 2 - 1];
 	uint rootNodeIdx = 0, nodesUsed = 1;
-	static inline BVHNode* pool[N_bvh];
 	static inline Primitives* arrPrimitive[N_bvh];
 	int arrPrimitiveIdx[N_bvh];
+	int ss_ = 0;
 };
 
 // -----------------------------------------------------------
@@ -1208,6 +1210,7 @@ public:
 		spot_lights[0] = pointLight(24, float3(0, 1.5, 0.5), spotID);
 
 		bvh = new simpleBVH(arrPrimitive);
+		bvh->BuildBVH();
 #endif
 
 
