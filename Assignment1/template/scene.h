@@ -107,11 +107,7 @@ public:
 		float3 dir = this->D;
 		float3 reflected = normalize(dir - 2.0f * (dot(dir, N) * N));
 		return Ray(I + (0.0002f * reflected), reflected, 1e34f, depthidx + 1);
-		
 	}
-
-	
-
 	// ray data
 #ifndef SPEEDTRIX
 	float3 O, D, rD;
@@ -122,6 +118,14 @@ public:
 #endif
 	Intersection I;
 	int depthidx = 0;
+};
+
+
+// ray pocket
+struct  RaysPocket
+{
+	vector<Ray*> rays;		// rays pocket
+	vector<float> ts;		// will be initilize for each t_s with 0. -> if t_s = 0 there is no intersection = hit=fasle
 };
 
 // -----------------------------------------------------------
@@ -1057,6 +1061,35 @@ public:
 		}
 	}
 
+	void IntersectBVHPoket(RaysPocket& rays, const uint nodeIdx)
+	{
+		BVHNode& node = *bvhNode[nodeIdx];
+		uint notintersect_num = 0;														// will be used to calculate the amount of intersection to traverse
+		float criteria_early_stopping = 0.8;
+		for (int i = 0; i < rays.rays.size(); i++) {
+			// itterate over all the rays and try to find intersection 
+			if (!IntersectAABB(*rays.rays[i], node.aabbMin, node.aabbMax)) notintersect_num++;
+		}
+		if (notintersect_num / rays.rays.size() > criteria_early_stopping) return;		// early stopping
+		if (node.triCount > 0)
+		{
+			for (int i = 0; i < rays.rays.size(); i++) {
+			// If root node -> intersect with all the rays in the pocket
+				for (uint i = 0; i < node.triCount; i++) {
+					arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]->Intersect(*rays.rays[i]);
+				}
+			}
+		}
+		else
+		{
+			// return the pocket -> until finding a root node/ no intersection
+			IntersectBVHPoket(rays, node.leftFirst);		// left child
+			IntersectBVHPoket(rays, node.leftFirst + 1);	// right child
+		}
+		
+	}
+
+
 
 	BVHNode* bvhNode[N_bvh * 2 - 1];
 	uint rootNodeIdx = 0, nodesUsed = 1;
@@ -1351,19 +1384,41 @@ public:
 		return color;
 	}
 
-	void FindNearest( Ray& ray ) const
+	void FindNearest(Ray& ray) const
 	{
 		// room walls - ugly shortcut for more speed
-		float t;
+		//float t;
 		if (isSpotLight) {
 			spot_lights[0].sphereLight->Intersect(ray);
 
-		}else{
+		}
+		else {
 			area_lights[0].Intersect(ray);
 		}
-		bvh->IntersectBVH(ray,0);
-		
-	}
+		bvh->IntersectBVH(ray, 0);
+
+	};
+
+	void FindNearestPocket( RaysPocket & rays) const
+	{
+		// room walls - ugly shortcut for more speed
+		float t;
+		for (int i = 0; i < rays.rays.size(); i++) 
+
+		{
+				if (isSpotLight) {
+					spot_lights[0].sphereLight->Intersect(*rays.rays[i]);
+
+				}
+				else {
+					area_lights[0].Intersect(*rays.rays[i]);
+				}
+
+		}
+			//bvh->IntersectBVH(ray, 0);
+
+	};
+
 	bool IsOccluded( Ray& ray ) const
 	{
 		float rayLength = ray.I.t;

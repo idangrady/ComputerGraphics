@@ -43,7 +43,6 @@ float3 Renderer::Trace(Ray& ray)
 	if (id == scene.areaID) return scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
 	if (id == scene.spotID) return scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
 
-
 	float3 I = ray.O + ray.I.t * ray.D;
 	bool hit_back = false;
 	float3 N = scene.GetNormal(ray.I, I, ray.D, hit_back);
@@ -52,7 +51,6 @@ float3 Renderer::Trace(Ray& ray)
 
 	if (sendWhitted) { return Whitted(N, ray, m, hit_back); }
 	else return RE(N, ray, m, hit_back);
-
 }
 
 // -----------------------------------------------------------
