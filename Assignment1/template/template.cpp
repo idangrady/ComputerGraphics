@@ -137,7 +137,11 @@ void main()
 	// initialize application
 	InitRenderTarget(SCRWIDTH, SCRHEIGHT);
 	Surface* screen = new Surface(SCRWIDTH, SCRHEIGHT);
+#ifdef GPU
+	app = new GPURenderer();
+#else
 	app = new Renderer();
+#endif
 	app->screen = screen;
 	app->Init();
 	// done, enter main loop

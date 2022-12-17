@@ -1662,5 +1662,6 @@ public:
 #include "scene.h"
 #include "camera.h"
 #include "renderer.h"
+#include "gpu_renderer.h"
 
 // EOF

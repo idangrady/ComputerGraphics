@@ -122,6 +122,7 @@
   </ItemDefinitionGroup>
   <!-- END Custom section -->
   <ItemGroup>
+    <ClCompile Include="gpu_renderer.cpp" />
     <ClCompile Include="renderer.cpp" />
     <ClCompile Include="template\template.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -132,6 +133,7 @@
     <ClInclude Include="bvh.h" />
     <ClInclude Include="camera.h" />
     <ClInclude Include="config.h" />
+    <ClInclude Include="gpu_renderer.h" />
     <ClInclude Include="renderer.h" />
     <ClInclude Include="simpleBVH.h" />
     <ClInclude Include="template\common.h" />
@@ -140,6 +142,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="assimp-vc143-mt.dll" />
+    <None Include="Kernels\example.cl" />
     <None Include="lib\assimp\*" />
     <None Include="template\LICENSE" />
   </ItemGroup>

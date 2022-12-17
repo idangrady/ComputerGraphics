@@ -1,6 +1,7 @@
 #pragma once
 #define STATIC 1
 #define PRETTY 0
+#define GPU //comment this part to turn off GPU
 
 bool sendWhittedCONFIG = false; 
 uint8_t AA_COUNT = 1;
