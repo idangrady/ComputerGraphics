@@ -1086,7 +1086,6 @@ public:
 			IntersectBVHPoket(rays, node.leftFirst);		// left child
 			IntersectBVHPoket(rays, node.leftFirst + 1);	// right child
 		}
-		
 	}
 
 

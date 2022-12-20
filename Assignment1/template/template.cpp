@@ -1523,7 +1523,7 @@ void Kernel::Run(const size_t count, const size_t localSize, cl_event* eventToWa
 	{
 		if (!Kernel::candoInterop) FatalError("OpenGL interop functionality required but not available.");
 		CHECKCL(error = clEnqueueAcquireGLObjects(queue, 1, acqBuffer->GetDevicePtr(), 0, 0, 0));
-		CHECKCL(error = clEnqueueNDRangeKernel(queue, kernel, 1, 0, &count, localSize == 0 ? 0 : &localSize, eventToWaitFor ? 1 : 0, eventToWaitFor, eventToSet));
+		CHECKCL(error = clEnqueueNDRangeKernel(queue, kernel, 1, 0, &count, localSize == 0 ? 0 : &localSize, eventToWaitFor ? 1 : 0, eventToWaitFor, eventToSet)); // kernel excecution-
 		CHECKCL(error = clEnqueueReleaseGLObjects(queue, 1, acqBuffer->GetDevicePtr(), 0, 0, 0));
 	}
 	else

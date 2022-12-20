@@ -1,8 +1,10 @@
+
+
 #define SCRWIDTH	1280
 #define SCRHEIGHT	720
 
 // Generate a rainbow hue from HSV
-float3 getColor(int i)
+ __attribute__((always_inline)) float3 getColor(int i)
 {
 	int c = i % (SCRWIDTH + 1);
 	float hue = (1.0f / SCRWIDTH) * (float)c * 360.0f;
@@ -14,6 +16,14 @@ float3 getColor(int i)
 	if(hue <= 300.0f) return (float3)(X, 0, 1);
 	return (float3)(1, 0, X);
 }
+
+
+
+
+
+
+
+
 
 // Make a nice moving rainbow hue
 __kernel void renderToScreen(write_only image2d_t target, __constant int* frame)

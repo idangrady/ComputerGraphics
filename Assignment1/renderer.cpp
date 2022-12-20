@@ -1,4 +1,6 @@
 #include "precomp.h"
+
+#include "CL/cl.hpp"
 // -----------------------------------------------------------
 // Initialize the renderer
 // -----------------------------------------------------------
@@ -25,7 +27,15 @@ void Renderer::Init()
 	mat4 m = mat4::LookAt(camera.camPos, float3(0, -1, 0));
 	camera.matRotate(m);
 
-	//scene.bvh->BuildBVH();
+	vector<cl::Platform> platforms; 
+	cl::Platform::get(&platforms);
+
+	_ASSERT(platforms.size() > 0);
+	
+	auto platform = platforms.front();
+	vector<cl::Device> devices; 
+	platform.getDevices(CL_DEVICE_TYPE_GPU, &devices);
+	auto device = devices.front();
 #endif
 }
 
