@@ -20,14 +20,28 @@ namespace Tmpl8
 		float3 mov;
 		float3 fovc; // interactive FOV
 
-		Scene scene;
+		SceneGPU scene;
+
 		Camera camera;
+		static inline Buffer* cameraBuffer;
+		static inline Buffer* rayBuffer;
+
+		static inline Kernel* generateKernel;
+		static inline Kernel* extendKernel;
+		static inline Kernel* shadeKernel;
+		//static inline Kernel* connectKernel; // Don't need this I think
+
+		static inline Buffer* triBuffer;
+		static inline Buffer* triColorBuffer;
 
 		static inline Kernel* screenKernel;
+		static inline Buffer* screenBuffer;
 
 		static inline Buffer* accumulatorBuffer;
-		static inline Buffer* screenBuffer;
 		static inline Buffer* frameCountBuffer; //We really need a buffer for this?
+
+		// Kernel that clears accumulator
+		static inline Kernel* clearKernel;
 
 		// Config options
 		int max_depth = MAX_DEPTH;

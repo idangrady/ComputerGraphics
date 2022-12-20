@@ -1,4 +1,5 @@
 #include "precomp.h"
+#pragma OPENCL EXTENSION cl_nvidia_printf : enable
 
 void GPURenderer::Init() {
 	frame = new int[1];
@@ -11,24 +12,63 @@ void GPURenderer::Init() {
 	// Bind render target to OpenCL buffer
 	screenBuffer = new Buffer(GetRenderTarget()->ID, 0, Buffer::TARGET);
 
-	frameCountBuffer = new Buffer(sizeof(uint), frame, CL_MEM_READ_ONLY);
+	//frameCountBuffer = new Buffer(sizeof(uint), frame, CL_MEM_READ_ONLY);
+	cameraBuffer = new Buffer(sizeof(float4) * 4, camera.cameraFloats, CL_MEM_READ_ONLY);
+	rayBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * 64, 0, 0);
+
+	// Set the accumulator buffer. We write all the ray results to this 
+	// buffer, and then run a Kernel that copies it to screenBuffer
+	accumulatorBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * sizeof(float4), 0, 0);
+
+	// Generate Kernel
+	generateKernel = new Kernel("Kernels/generate.cl", "generate");
+	// Extend Kernel
+	extendKernel = new Kernel("Kernels/extend.cl", "extend");
+	// Shade Kernel
+	shadeKernel = new Kernel("Kernels/shade.cl", "shade");
+
+	// Make some dummy triangles
+	triBuffer = new Buffer(2 * sizeof(TriGPU), scene.tris, CL_MEM_READ_ONLY);
+	triColorBuffer = new Buffer(2 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
+
+	// Generate Kernel arguments
+	generateKernel->SetArguments(rayBuffer, cameraBuffer);
+	// Extend Kernel Arguments
+	extendKernel->SetArguments(rayBuffer, triBuffer, 2);
+	// Shade Kernel Arguments
+	shadeKernel->SetArguments(rayBuffer, triBuffer, triColorBuffer, accumulatorBuffer);
 
 	// Screen kernel
-	screenKernel = new Kernel("Kernels/example.cl", "renderToScreen");
-	screenKernel->SetArguments(screenBuffer, frameCountBuffer);
+	screenKernel = new Kernel("Kernels/screen.cl", "renderToScreen");
+	screenKernel->SetArguments(accumulatorBuffer, screenBuffer);
 
-	// Set the accumulator buffer. Currently unused, but we should probably write all the ray results 
-	// to this buffer, and then run a Kernel that copies it to screenBuffer
-	accumulatorBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * sizeof(float4), 0, 0);
+	// Clear kernel. Clears the accumulator.
+	clearKernel = new Kernel("Kernels/clear.cl", "clear");
+	clearKernel->SetArguments(accumulatorBuffer);
+
+	cameraBuffer->CopyToDevice();
+	triBuffer->CopyToDevice();
+	triColorBuffer->CopyToDevice();
 }
 
 void Tmpl8::GPURenderer::Tick(float deltaTime)
 {
+	const float speed = 0.02f;
+	camera.move(mult * mov, speed);
+	cameraBuffer->CopyToDevice();
 	Timer t;
 	frame[0] += 1;
-	// Copy frameCountBuffer to GPU
-	frameCountBuffer->CopyToDevice(true);
-	screenKernel->Run(SCRWIDTH * SCRHEIGHT);
+	cl_event k_events[5];
+	// Clear accumulator
+	clearKernel->Run(SCRWIDTH * SCRHEIGHT, 0, 0, &k_events[0]);
+	// Run generate Kernel. Creates SCRWIDTH * SCRHEIGHT primary rays
+	generateKernel->Run(SCRWIDTH * SCRHEIGHT, 0, &k_events[0], &k_events[1]);
+	// Run Extend Kernel
+	extendKernel->Run(SCRWIDTH * SCRHEIGHT, 0, &k_events[1], &k_events[2]);
+	// Run Shade Kernel
+	shadeKernel->Run(SCRWIDTH * SCRHEIGHT, 0, &k_events[2], &k_events[3]);
+	// Draw to Screen
+	screenKernel->Run(SCRWIDTH * SCRHEIGHT, 0, &k_events[3], &k_events[4]);
 	// Wait for finish
 	clFinish(Kernel::GetQueue());
 	// performance report - running average - ms, MRays/s

@@ -1361,6 +1361,23 @@ public:
 	bool ownData, aligned;
 };
 
+// OpenCL Pipe
+class Pipe {
+public:
+	enum { DEFAULT = 0, READONLY = 1, WRITEONLY = 2 };
+	Pipe() : hostBuffer( 0 ) {}
+	Pipe(unsigned int N, void* ptr = 0, unsigned int t = DEFAULT);
+	cl_mem* GetDevicePtr() { return&deviceBuffer; }
+	void CopyToDevice(bool blocking = true);
+	void CopyFromDevice(bool blocking = true);
+	void CopyTo(Pipe* pipe);
+	void Clear();
+	unsigned int* hostBuffer;
+	cl_mem deviceBuffer = 0;
+	unsigned int type, max_packets, packet_size;
+	bool ownData, aligned;
+};
+
 // OpenCL kernel
 class Kernel
 {
@@ -1660,8 +1677,10 @@ public:
 };
 
 #include "scene.h"
+#include "scenegpu.h"
 #include "camera.h"
-#include "renderer.h"
 #include "gpu_renderer.h"
+#include "renderer.h"
+
 
 // EOF
