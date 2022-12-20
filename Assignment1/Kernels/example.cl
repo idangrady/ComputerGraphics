@@ -18,13 +18,6 @@
 }
 
 
-
-
-
-
-
-
-
 // Make a nice moving rainbow hue
 __kernel void renderToScreen(write_only image2d_t target, __constant int* frame)
 {
