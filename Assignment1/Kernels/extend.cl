@@ -30,7 +30,7 @@ void IntersectTri(Ray* ray, __constant Triangle* tri)
 __kernel void extend(__global Ray* rays, __constant Triangle* triangles, int triangleCount) {
 	int threadIdx = get_global_id(0);
     Ray* ray = &rays[threadIdx];
-    for(int i = 0; i < 2; i++){
+    for(int i = 0; i < triangleCount; i++){
         IntersectTri(ray, &triangles[i]);
     }
 }
