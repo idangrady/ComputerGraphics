@@ -100,11 +100,19 @@ public:
 
 	float aspect = (float)SCRWIDTH / (float)SCRHEIGHT;
 	float ZoomLevel = 1.0f;
-	float3 camPos, camPos_start, startDir;
+	float3 camPos_start, startDir;
 	float yaw = 0, pitch = 0;
 	mat4 cam_matrix;
 	float3 topLeft_start, topRight_start, bottomLeft_start;
-	float3 topLeft, topRight, bottomLeft;
+	union {
+		struct {
+			float3 camPos; float dummy0;
+			float3 topLeft; float dummy1;
+			float3 topRight; float dummy2;
+			float3 bottomLeft; float dummy3;
+		};
+		cl_float4 cameraFloats[4];
+	};
 
 	
 	float vfov;

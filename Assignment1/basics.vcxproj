@@ -134,6 +134,7 @@
     <ClInclude Include="camera.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="gpu_renderer.h" />
+    <ClInclude Include="scenegpu.h" />
     <ClInclude Include="renderer.h" />
     <ClInclude Include="simpleBVH.h" />
     <ClInclude Include="template\common.h" />
@@ -143,6 +144,10 @@
   <ItemGroup>
     <None Include="assimp-vc143-mt.dll" />
     <None Include="Kernels\example.cl" />
+    <None Include="Kernels\extend.cl" />
+    <None Include="Kernels\generate.cl" />
+    <None Include="Kernels\shade.cl" />
+    <None Include="Kernels\utils.cl" />
     <None Include="lib\assimp\*" />
     <None Include="template\LICENSE" />
   </ItemGroup>
