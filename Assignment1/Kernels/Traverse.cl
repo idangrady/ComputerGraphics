@@ -2,34 +2,38 @@
 
 
 
-__attribute__((always_inline)) void traverse_tree( buffer B, int max_depth)
+__attribute__((always_inline)) void traverse_tree(global buffer &nodes,global buffer &nodes_idx int max_depth)
 	{
-	int root = 0;
 
-	BVHNode& node = *B[nodeIdx];
-	int i =0;
-	while(!node.is_leaf() || i>max_depth){
-	
-	if (!IntersectAABB(ray, node.aabbMin, node.aabbMax)) return;
-	if (node.triCount>0)
-	{
-		for (uint i = 0; i < node.triCount; i++) { 
-			arrPrimitive[arrPrimitiveIdx[node.leftFirst + i]]->Intersect(ray);
+	  int stack_size = 0;
+	  __local BVHNode stack[SCRWIDTH2*SCRHEIGHT2];				// stack for traversing the tree
+	    stack[stack_size++] = bvhnodes[0];						// init with the first bvhnode
+																	
+		while(stack_size>0)										// iterate over all values 
+		{
+			// pop the head bvhnode
+			BVHNode node = [--stack_size];						// check if init is currect
+
+			// if intersect and the count >0
+			if (!IntersectAABB(ray, node.aabbMin, node.aabbMax)) return;
+			if (node.triCount>0)
+			{
+				for (uint i = 0; i < node.triCount; i++) 
+				{ 
+					nodes[nodes_idx[node.leftFirst + i]]->Intersect(ray);
+				}
+			}
+			else
+			{
+				stack[stack_size++]= nodes[nodes_idx[node.leftFirst]];
+				stack[stack_size++]= nodes[nodes_idx[node.leftFirst+1]] ;
+			}
 		}
-	}
-	else
-	{
-		IntersectBVH(ray, node.leftFirst);
-		IntersectBVH(ray, node.leftFirst + 1); 
-	}
-	
 
-	i++;
-	}
 	}
 
 
-	// make primary rays
+// make primary rays
 __kernel void makePrimaryRays(read_only MakePrimaryRays) 
 {
 
@@ -39,15 +43,3 @@ cur_ray = MakePrimaryRays[i]
 }
 }
 
-
-
-O,D,dist,primIdx= MakePrimaryRays[i]
-I = IntersectionPoint( O, D, dist)
-N = PrimNormal( primIdx, I )
-if (NEE) {
-si= atomicInc( shadowRayIdx)
-shadowBuffer[si] = ShadowRay( … )
-}
-if (bounce) {
-ei= atomicInc( extensionRayIdx)
-newRayBuffer[ei] = ExtensionRay( … )
