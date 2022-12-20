@@ -17,6 +17,14 @@ void GPURenderer::Init() {
 	screenKernel = new Kernel("Kernels/example.cl", "renderToScreen");
 	screenKernel->SetArguments(screenBuffer, frameCountBuffer);
 
+
+	MakePrimaryRays = new Kernel("Kernels/MakePrimaryRays.cl", "renderToScreen");
+	primaryRays = new Buffer(GetRenderTarget()->ID, 0, Buffer::TARGET);
+	MakePrimaryRays->SetArguments(MakePrimaryRays, &camera.camPos);
+
+
+
+
 	// Set the accumulator buffer. Currently unused, but we should probably write all the ray results 
 	// to this buffer, and then run a Kernel that copies it to screenBuffer
 	accumulatorBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * sizeof(float4), 0, 0);
@@ -28,6 +36,7 @@ void Tmpl8::GPURenderer::Tick(float deltaTime)
 	frame[0] += 1;
 	// Copy frameCountBuffer to GPU
 	frameCountBuffer->CopyToDevice(true);
+
 	screenKernel->Run(SCRWIDTH * SCRHEIGHT);
 	// Wait for finish
 	clFinish(Kernel::GetQueue());

@@ -1,7 +1,7 @@
 
-
 #define SCRWIDTH2	1280
-#define SCRHEIGHT2	720
+#define SCRHEIGHT2	720  
+
 
 const uint sphereID = 0;
 const uint cubeID = 1;
@@ -12,6 +12,7 @@ const uint lightID = 5;
 const uint skyBoxID = 6;
 
 
+
 struct Intersection
 {
 	Intersection() = default;
@@ -19,6 +20,7 @@ struct Intersection
 	float u, v;										// barycentric coordinates of the intersection
 	uint instPrim = MakeID(skyBoxID, 0, 0);			// Type indedx (3 bit), instance index (9 bit) and primitive index (20 bit)
 };
+
 
 typedef struct Ray {
  float3 O;
@@ -28,11 +30,9 @@ typedef struct Ray {
 } Ray;
 
 
-
 static inline uint MakeID(uint type, uint id, uint tri) {
 	return (type << 29) + (id << 20) + (tri);
 }
-
 
 struct primitive
 {
@@ -103,6 +103,10 @@ void intersect(Ray ray)
 		if (points.size()==1) return (points[0]);															// sphere
 		if(points.size()==3) return (points[1]+points[0]+points[2])/3;										// trig
 	}
-
-	
 }
+
+struct BVHNode
+{
+	float3 aabbMin, aabbMax;
+	uint leftFirst, triCount;
+};

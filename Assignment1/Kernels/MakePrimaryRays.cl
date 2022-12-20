@@ -1,15 +1,4 @@
-
-
-#define SCRWIDTH2	1280
-#define SCRHEIGHT2	720
-
-
-typedef struct Ray {
- float3 O;
-  float3 D;
-  Intersection I;
-  int depthidx =0;
-} Ray;
+#include<utils.cl>
 
 
 __attribute__((always_inline)) Ray GetPrimaryRay( const int x, const int y, __global float3* camPos )
@@ -24,7 +13,7 @@ __attribute__((always_inline)) Ray GetPrimaryRay( const int x, const int y, __gl
 		return Ray;
 	}
 
-	// make primary rays
+// make primary rays
 __kernel void makePrimaryRays(write_only MakePrimaryRays,__global float3* camPos ) 
 {
 	int threadIdx = get_global_id(0);

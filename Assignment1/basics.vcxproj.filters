@@ -5,6 +5,7 @@
     <ClCompile Include="template\template.cpp">
       <Filter>template</Filter>
     </ClCompile>
+    <ClCompile Include="gpu_renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="camera.h" />
@@ -27,6 +28,7 @@
     <ClInclude Include="bvh.h">
       <Filter>template\BVH</Filter>
     </ClInclude>
+    <ClInclude Include="gpu_renderer.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="template">
@@ -41,5 +43,10 @@
       <Filter>template</Filter>
     </None>
     <None Include="assimp-vc143-mt.dll" />
+    <None Include="Kernels\example.cl" />
+    <None Include="Kernels\MakePrimaryRays.cl" />
+    <None Include="Kernels\Traverse.cl" />
+    <None Include="Kernels\utils.cl" />
+    <None Include="Kernels\shade.cl" />
   </ItemGroup>
 </Project>

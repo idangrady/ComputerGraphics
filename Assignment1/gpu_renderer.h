@@ -29,6 +29,9 @@ namespace Tmpl8
 		static inline Buffer* screenBuffer;
 		static inline Buffer* frameCountBuffer; //We really need a buffer for this?
 
+		static inline Buffer* primaryRays;
+		static inline Kernel* MakePrimaryRays;
+
 		// Config options
 		int max_depth = MAX_DEPTH;
 		bool sendWhitted = sendWhittedCONFIG;
