@@ -1,9 +1,4 @@
-#include "template/common.h"
 #include "Kernels/utils.cl"
-
-inline uint makeId(uint type, uint id, uint tri){
-    return (type << 30) + (id << 20) + (tri);
-}
 
 void IntersectTri(Ray* ray, __constant Triangle* tri) 
 {
@@ -20,8 +15,8 @@ void IntersectTri(Ray* ray, __constant Triangle* tri)
     const float v = f * dot(ray->D.xyz, q);
     if (v < 0 || u + v > 1) return;
     const float t = f * dot(edge2, q);
-    if (t > 0.0001f && t < ray->t){
-        ray->t = t;
+    if (t > 0.0001f && t < ray->rD_t.w){
+        ray->rD_t.w = t;
         ray->uv = (float2)(u, v);
         ray->primIdx = makeId(1, 0, tri->id);
     }
