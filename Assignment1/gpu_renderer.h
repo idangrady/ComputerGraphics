@@ -16,11 +16,19 @@ namespace Tmpl8
 		void KeyDown(int key);
 
 		static inline int* frame;
+		bool* justMoved = false;
 		float mult = 1.0f;
 		float3 mov;
 		float3 fovc; // interactive FOV
+		uint* seedDepth;
 
 		SceneGPU scene;
+
+		int* counters; // Counters for new rays
+		static inline Buffer* counterBuffer;
+		static inline Buffer* newRayBuffer;
+		static inline Buffer* seedBuffer;
+		static inline Buffer* movedBuffer;
 
 		Camera camera;
 		static inline Buffer* cameraBuffer;
@@ -32,6 +40,7 @@ namespace Tmpl8
 		//static inline Kernel* connectKernel; // Don't need this I think
 
 		static inline Buffer* triBuffer;
+		static inline Buffer* matBuffer;
 		static inline Buffer* triColorBuffer;
 
 		static inline Kernel* screenKernel;
@@ -40,6 +49,8 @@ namespace Tmpl8
 		static inline Buffer* accumulatorBuffer;
 		static inline Buffer* frameCountBuffer; //We really need a buffer for this?
 
+		// Kernel that copies new rays to rays
+		static inline Kernel* copyKernel;
 		// Kernel that clears accumulator
 		static inline Kernel* clearKernel;
 

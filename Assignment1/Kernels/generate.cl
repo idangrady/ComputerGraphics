@@ -1,4 +1,3 @@
-#include "template/common.h"
 #include "Kernels/utils.cl"
 
 Ray createPrimaryRay(__constant Camera* c, int i) {
@@ -12,8 +11,8 @@ Ray createPrimaryRay(__constant Camera* c, int i) {
 	Ray ray = { 
 		(float4)(c->camPos.xyz, 1), 
 		(float4)(D, 1),
-		(float4)(1.0f / D, 1),
-		1e34f,
+		(float4)(1.0f / D.x, 1.f / D.y, 1.f / D.z , 1e34f),
+		i,
 		0,
 		(float2)(0, 0)
 	};
