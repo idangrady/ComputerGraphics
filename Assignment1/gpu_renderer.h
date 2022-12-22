@@ -20,7 +20,8 @@ namespace Tmpl8
 		float mult = 1.0f;
 		float3 mov;
 		float3 fovc; // interactive FOV
-		uint* seedDepth;
+		unsigned long long* seeds;
+		uint* depth;
 
 		SceneGPU scene;
 
@@ -28,6 +29,7 @@ namespace Tmpl8
 		static inline Buffer* counterBuffer;
 		static inline Buffer* newRayBuffer;
 		static inline Buffer* seedBuffer;
+		static inline Buffer* depthBuffer;
 		static inline Buffer* movedBuffer;
 
 		Camera camera;

@@ -55,7 +55,7 @@ namespace Tmpl8 {
 			};
 			MaterialGPU redglass = {
 				{0, 0, 1, 0},
-				{0, 5, 5, 0},
+				{0.2, 0.8, 0.8, 0},
 				false,
 				1,
 			};
