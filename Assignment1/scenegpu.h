@@ -11,7 +11,7 @@ namespace Tmpl8 {
 		cl_int textureId;
 	};
 	__declspec(align(64)) struct Primitive_GPU {
-		cl_float3 vertex0, vertex1, vertex2;
+		cl_float4 vertex0, vertex1, vertex2;
 		cl_float N0, N1, N2;
 		cl_uint id;
 		cl_uint objId;
@@ -26,31 +26,31 @@ namespace Tmpl8 {
 
 	__declspec(align(64)) struct BVH_GPU
 	{
-		float3 aabbMin, aabbMax;			// boundary
+		float4 aabbMin, aabbMax;			// boundary
 		uint leftFirst, triCount;			// count and start
 	};
 
-	float3 getCentroid(Primitive_GPU *primitive)
+	float4 getCentroid(Primitive_GPU *primitive)
 	{
 		if (primitive->objId = 0)
 		{
 			auto x = (primitive->vertex0.x + primitive->vertex1.x + primitive->vertex2.x) / 3;
 			auto y = (primitive->vertex0.y + primitive->vertex1.y + primitive->vertex2.y) / 3;
 			auto z = (primitive->vertex0.z + primitive->vertex1.z + primitive->vertex2.z) / 3;
-			return float3(x, y, z);
+			return float4(x, y, z,1);
 		}
 		else { return float4(primitive->vertex0.x, primitive->vertex0.y, primitive->vertex0.z, 1); }
 	}
 
-	pair<float3, float3>  createAABB(Primitive_GPU* primitive)
+	pair<float4, float4>  createAABB(Primitive_GPU* primitive)
 	{
-		float3 aabbMin = float3(1e30f);
-		float3 aabbMax = float3(-1e30f);
+		float4 aabbMin = float4(1e30f);
+		float4 aabbMax = float4(-1e30f);
 		if (primitive->objId == 0) {
 			// Triangle
-			float3 ver_1 = float3(primitive->vertex0.x, primitive->vertex0.y, primitive->vertex0.z);
-			float3 ver_2 = float3(primitive->vertex1.x, primitive->vertex1.y, primitive->vertex1.z);
-			float3 ver_3 = float3(primitive->vertex2.x, primitive->vertex2.y, primitive->vertex2.z);
+			float4 ver_1 = float4(primitive->vertex0.x, primitive->vertex0.y, primitive->vertex0.z,1);
+			float4 ver_2 = float4(primitive->vertex1.x, primitive->vertex1.y, primitive->vertex1.z, 1);
+			float4 ver_3 = float4(primitive->vertex2.x, primitive->vertex2.y, primitive->vertex2.z,1);
 
 			aabbMin = fminf(aabbMin, ver_1);
 			aabbMin = fminf(aabbMin, ver_2);
@@ -62,8 +62,8 @@ namespace Tmpl8 {
 		else if (primitive->objId == 1) {
 			// sphere
 			auto radius = primitive->vertex1.x;
-			aabbMin = getCentroid(primitive) - float3(radius, radius, radius);
-			aabbMax = getCentroid(primitive) + float3(radius, radius, radius);
+			aabbMin = getCentroid(primitive) - float4(radius, radius, radius, radius);
+			aabbMax = getCentroid(primitive) + float4(radius, radius, radius, radius);
 		}
 		else if (primitive->objId == 2) {
 			// Cube
@@ -105,15 +105,15 @@ namespace Tmpl8 {
 		{
 			BVH_GPU& node = *bvhNode[nodeIdx];
 
-			node.aabbMin = float3(1e30f);
-			node.aabbMax = float3(-1e30f);
+			node.aabbMin = float4(1e30f);
+			node.aabbMax = float4(-1e30f);
 			for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
 			{
 				cout << "Current: " << arrPrimitiveIdx[first + i] << endl;
 				auto curr_val = arrPrimitiveIdx[first + i];
 				Primitive_GPU *ssass = arrPrimitive[curr_val];
 				cout << ssass << endl;
-				pair<float3, float3> aabb_minMax = createAABB(ssass);
+				pair<float4, float4> aabb_minMax = createAABB(ssass);
 				node.aabbMin = fminf(node.aabbMin, aabb_minMax.first);
 				node.aabbMax = fmaxf(node.aabbMax, aabb_minMax.second);
 			}
@@ -334,7 +334,7 @@ namespace Tmpl8 {
 			for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
 			{
 
-				pair<float3, float3> aabb_minMax = createAABB(&arrPrimitive[arrPrimitiveIdx[first + i]]);
+				pair<float4, float4> aabb_minMax = createAABB(&arrPrimitive[arrPrimitiveIdx[first + i]]);
 				node.aabbMin = fminf(node.aabbMin, aabb_minMax.first);
 				node.aabbMax = fmaxf(node.aabbMax, aabb_minMax.second);
 			}

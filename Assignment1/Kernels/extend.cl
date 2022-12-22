@@ -51,7 +51,6 @@ void IntersectSphere(Ray* ray, __constant Triangle* tri, int r)
 
 __kernel void extend(__global Ray* rays, __constant Triangle* arrPrimitives,__constant int*arrPrimitivesIdx , __constant BVHNode* bvhnodes, int triangleCount) 
 {
-		int i =0;
 
 
 	int threadIdx = get_global_id(0);
