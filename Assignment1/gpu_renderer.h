@@ -30,6 +30,10 @@ namespace Tmpl8
 		static inline Buffer* seedBuffer;
 		static inline Buffer* movedBuffer;
 
+		// buffer for BVH
+		static inline Buffer* BVHnodes;
+		static inline Buffer* arrprimitiveIdx;
+
 		Camera camera;
 		static inline Buffer* cameraBuffer;
 		static inline Buffer* rayBuffer;
@@ -39,7 +43,10 @@ namespace Tmpl8
 		static inline Kernel* shadeKernel;
 		//static inline Kernel* connectKernel; // Don't need this I think
 
-		static inline Buffer* triBuffer;
+		static inline Buffer* triBuffer;  
+		static inline Buffer* triBufferIdx;
+		static inline Buffer* BVHBuffer;
+
 		static inline Buffer* matBuffer;
 		static inline Buffer* triExBuffer;
 

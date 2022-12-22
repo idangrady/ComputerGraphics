@@ -10,10 +10,11 @@ namespace Tmpl8 {
 		cl_int matId;
 		cl_int textureId;
 	};
-	__declspec(align(64)) struct TriGPU {
-		cl_float4 vertex0, vertex1, vertex2;
+	__declspec(align(64)) struct Primitive_GPU {
+		cl_float3 vertex0, vertex1, vertex2;
 		cl_float N0, N1, N2;
 		cl_uint id;
+		cl_uint objId;
 	};
 
 	__declspec(align(64)) struct MaterialGPU {
@@ -23,12 +24,160 @@ namespace Tmpl8 {
 		cl_uint medium;
 	};
 
+	__declspec(align(64)) struct BVH_GPU
+	{
+		float3 aabbMin, aabbMax;			// boundary
+		uint leftFirst, triCount;			// count and start
+	};
+
+	float3 getCentroid(Primitive_GPU *primitive)
+	{
+		if (primitive->objId = 0)
+		{
+			auto x = (primitive->vertex0.x + primitive->vertex1.x + primitive->vertex2.x) / 3;
+			auto y = (primitive->vertex0.y + primitive->vertex1.y + primitive->vertex2.y) / 3;
+			auto z = (primitive->vertex0.z + primitive->vertex1.z + primitive->vertex2.z) / 3;
+			return float3(x, y, z);
+		}
+		else { return float4(primitive->vertex0.x, primitive->vertex0.y, primitive->vertex0.z, 1); }
+	}
+
+	pair<float3, float3>  createAABB(Primitive_GPU* primitive)
+	{
+		float3 aabbMin = float3(1e30f);
+		float3 aabbMax = float3(-1e30f);
+		if (primitive->objId == 0) {
+			// Triangle
+			float3 ver_1 = float3(primitive->vertex0.x, primitive->vertex0.y, primitive->vertex0.z);
+			float3 ver_2 = float3(primitive->vertex1.x, primitive->vertex1.y, primitive->vertex1.z);
+			float3 ver_3 = float3(primitive->vertex2.x, primitive->vertex2.y, primitive->vertex2.z);
+
+			aabbMin = fminf(aabbMin, ver_1);
+			aabbMin = fminf(aabbMin, ver_2);
+			aabbMin = fminf(aabbMin, ver_3);
+			aabbMax = fmaxf(aabbMax, ver_1);
+			aabbMax = fmaxf(aabbMax, ver_2);
+			aabbMax = fmaxf(aabbMax, ver_3);
+		}
+		else if (primitive->objId == 1) {
+			// sphere
+			auto radius = primitive->vertex1.x;
+			aabbMin = getCentroid(primitive) - float3(radius, radius, radius);
+			aabbMax = getCentroid(primitive) + float3(radius, radius, radius);
+		}
+		else if (primitive->objId == 2) {
+			// Cube
+		}
+		return std::make_pair(aabbMin, aabbMax);
+	}
+
+
+	class simpleBVHGPU 
+	{
+	public:
+		simpleBVHGPU() = default;
+
+		void add_primitive(Primitive_GPU* arrPrimitive, int count)
+		{
+			this->count = count;
+			for (int i = count - 1; i >= 0; i--)
+			{
+				// assigning the poiters for the 
+				this->arrPrimitive[i] = &arrPrimitive[i];
+				arrPrimitiveIdx[i] = i;
+			}
+			for (int j = 0; j < 2 * count - 1; j++) {
+				bvhNode[j] = new BVH_GPU();
+
+			}
+		}
+		void BuildBVH()
+		{
+			// assign all triangles to root node
+			BVH_GPU& root = *bvhNode[rootNodeIdx];
+			root.leftFirst = 0;
+			root.triCount = count;
+			UpdateNodeBounds(rootNodeIdx);
+			// subdivide recursively
+			Subdivide(rootNodeIdx);
+		}
+		void UpdateNodeBounds(uint nodeIdx)
+		{
+			BVH_GPU& node = *bvhNode[nodeIdx];
+
+			node.aabbMin = float3(1e30f);
+			node.aabbMax = float3(-1e30f);
+			for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
+			{
+				cout << "Current: " << arrPrimitiveIdx[first + i] << endl;
+				auto curr_val = arrPrimitiveIdx[first + i];
+				Primitive_GPU *ssass = arrPrimitive[curr_val];
+				cout << ssass << endl;
+				pair<float3, float3> aabb_minMax = createAABB(ssass);
+				node.aabbMin = fminf(node.aabbMin, aabb_minMax.first);
+				node.aabbMax = fmaxf(node.aabbMax, aabb_minMax.second);
+			}
+		}
+		void Subdivide(uint nodeIdx)
+		{
+			// terminate recursion
+			BVH_GPU& node = *bvhNode[nodeIdx];
+			if (node.triCount <= 1) return;
+			// determine split axis and position
+			float3 extent = node.aabbMax - node.aabbMin;
+			int axis = 0;
+			if (extent.y > extent.x) axis = 1;
+			if (extent.z > extent[axis]) axis = 2;
+			float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+			// in-place partition
+			int i = node.leftFirst;
+			int j = i + node.triCount - 1;
+			while (i <= j)
+			{
+				if (getCentroid(arrPrimitive[arrPrimitiveIdx[i]])[axis] < splitPos)
+					i++;
+				else
+					swap(arrPrimitiveIdx[i], arrPrimitiveIdx[j--]);
+			}
+			// abort split if one of the sides is empty
+			int leftCount = i - node.leftFirst;
+	//		if (leftCount == 0 || leftCount == node.triCount) return;
+
+			int leftChildIdx = nodesUsed++;
+			int rightChildIdx = nodesUsed++;
+			bvhNode[leftChildIdx]->leftFirst = node.leftFirst;
+			bvhNode[leftChildIdx]->triCount = leftCount;
+			bvhNode[rightChildIdx]->leftFirst = i;
+			bvhNode[rightChildIdx]->triCount = node.triCount - leftCount;
+			node.leftFirst = leftChildIdx;
+			node.triCount = 0;
+			UpdateNodeBounds(leftChildIdx);
+			UpdateNodeBounds(rightChildIdx);
+			// recurse
+			Subdivide(leftChildIdx);
+			Subdivide(rightChildIdx);
+		}
+		int count = 18;
+
+		BVH_GPU* bvhNode[2*18-1];
+		uint rootNodeIdx = 0, nodesUsed = 1;
+		Primitive_GPU* arrPrimitive[18];
+		int arrPrimitiveIdx[18];
+		int ss_ = 0;
+	};
+
+
+
 	class SceneGPU {
 	public:
 		SceneGPU() {
-			tris = new TriGPU[tri_count];
+			arrPrimitive = new Primitive_GPU[tri_count];
 			triExs = new TriExGPU[tri_count];
 			mats = new MaterialGPU[mat_count];
+
+			bvhNode = new BVH_GPU[2 * tri_count - 1];
+			arrPrimitiveIdx = new int[tri_count];
+
 			MaterialGPU red = {
 				{1, 0, 0, 0},
 				{0, 0, 0, 0},
@@ -48,7 +197,7 @@ namespace Tmpl8 {
 				0,
 			};
 			MaterialGPU lamp = {
-				{24, 24, 24, 0},
+				{24, 24, 24 , 0},
 				{0, 0, 0, 0},
 				true,
 				0,
@@ -95,8 +244,25 @@ namespace Tmpl8 {
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(1.f, -2.5f, 0.f), float3(0.f, -2.5f, 1.f), 4);
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(0.f, -2.5f, 1.f), float3(-1.f, -2.5f, 0.f), 4);
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(-1.f, -2.5f, 0.f), float3(0.f, -2.5f, -1.f), 4);
+
+			SimpleBVHGPUInstance = new simpleBVHGPU();
+			SimpleBVHGPUInstance->add_primitive(arrPrimitive, tri_count);		// initlize the BVH tree
+			SimpleBVHGPUInstance->BuildBVH();
+			//BuildBVH();
 		}
-		void MakeTriangle(float3 v0, float3 v1, float3 v2, int mat) {
+
+		void BuildBVH()
+		{
+			// assign all triangles to root node
+			BVH_GPU& root = bvhNode[rootNodeIdx];
+			root.leftFirst = 0;
+			root.triCount = tri_count;
+			UpdateNodeBounds(rootNodeIdx);
+			// subdivide recursively
+			Subdivide(rootNodeIdx);
+		}
+ 
+		void MakeTriangle(float3 v0, float3 v1, float3 v2, int mat, int obj = 0) {
 			static int id = 0;
 			float3 N = normalize(cross((v1 - v0), (v2 - v0)));
 			float3 C = (v0 + v1 + v2) / 3.f;
@@ -104,7 +270,7 @@ namespace Tmpl8 {
 				mat,
 				-1,
 			};
-			TriGPU tri = {
+			Primitive_GPU tri = {
 				{v0.x, v0.y, v0.z, C.x},
 				{v1.x, v1.y, v1.z, C.y},
 				{v2.x, v2.y, v2.z, C.z},
@@ -112,14 +278,80 @@ namespace Tmpl8 {
 				N.y,
 				N.z,
 				id,
+				0
 			};
 			triExs[id] = triEx;
-			tris[id++] = tri;
+			arrPrimitive[id++] = tri;
 		}
+
+
+		void Subdivide(uint nodeIdx)
+		{
+			// terminate recursion
+			BVH_GPU& node = bvhNode[nodeIdx];
+			if (node.triCount <= 1) return;
+			// determine split axis and position
+			float3 extent = node.aabbMax - node.aabbMin;
+			int axis = 0;
+			if (extent.y > extent.x) axis = 1;
+			if (extent.z > extent[axis]) axis = 2;
+			float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+			// in-place partition
+			int i = node.leftFirst;
+			int j = i + node.triCount - 1;
+			while (i <= j)
+			{
+				if (getCentroid(&arrPrimitive[arrPrimitiveIdx[i]])[axis] < splitPos)
+					i++;
+				else
+					swap(arrPrimitiveIdx[i], arrPrimitiveIdx[j--]);
+			}
+			// abort split if one of the sides is empty
+			int leftCount = i - node.leftFirst;
+			if (leftCount == 0 || leftCount == node.triCount) return;
+
+			int leftChildIdx = nodesUsed++;
+			int rightChildIdx = nodesUsed++;
+			bvhNode[leftChildIdx].leftFirst = node.leftFirst;
+			bvhNode[leftChildIdx].triCount = leftCount;
+			bvhNode[rightChildIdx].leftFirst = i;
+			bvhNode[rightChildIdx].triCount = node.triCount - leftCount;
+			node.leftFirst = leftChildIdx;
+			node.triCount = 0;
+			UpdateNodeBounds(leftChildIdx);
+			UpdateNodeBounds(rightChildIdx);
+
+			Subdivide(leftChildIdx);
+			Subdivide(rightChildIdx);
+		}
+
+		void UpdateNodeBounds(uint nodeIdx)
+		{
+			BVH_GPU& node = bvhNode[nodeIdx];
+
+			node.aabbMin = float4(1e30f);
+			node.aabbMax = float4(-1e30f);
+			for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
+			{
+
+				pair<float3, float3> aabb_minMax = createAABB(&arrPrimitive[arrPrimitiveIdx[first + i]]);
+				node.aabbMin = fminf(node.aabbMin, aabb_minMax.first);
+				node.aabbMax = fmaxf(node.aabbMax, aabb_minMax.second);
+			}
+		}
+
 		TriExGPU* triExs;
-		TriGPU* tris;
+		//Primitive_GPU* tris;
 		MaterialGPU* mats;
+
+		simpleBVHGPU* SimpleBVHGPUInstance;
+		BVH_GPU* bvhNode;
+		Primitive_GPU *arrPrimitive;
+		int* arrPrimitiveIdx;
+
 		int tri_count = 18;
 		int mat_count = 5;
-	};
+		int nodesUsed = 0;
+		int rootNodeIdx = 0;
+};
 }

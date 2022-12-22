@@ -44,7 +44,10 @@ void GPURenderer::Init() {
 	shadeKernel = new Kernel("Kernels/shade.cl", "shade");
 
 	// Make some dummy triangles
-	triBuffer = new Buffer(scene.tri_count * sizeof(TriGPU), scene.tris, CL_MEM_READ_ONLY);
+	triBuffer = new Buffer(scene.tri_count * sizeof(Primitive_GPU), scene.arrPrimitive, CL_MEM_READ_ONLY);
+	triBufferIdx = new Buffer(scene.tri_count * sizeof(Primitive_GPU), scene.arrPrimitiveIdx, CL_MEM_READ_ONLY);
+	BVHBuffer = new Buffer((scene.tri_count*2-1) * sizeof(BVH_GPU), scene.bvhNode, CL_MEM_READ_ONLY);
+
 	triExBuffer = new Buffer(scene.tri_count * sizeof(TriExGPU), scene.triExs, CL_MEM_READ_ONLY);
 	matBuffer = new Buffer(scene.mat_count * sizeof(MaterialGPU), scene.mats, CL_MEM_READ_ONLY);
 	//triColorBuffer = new Buffer(2 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
@@ -52,7 +55,7 @@ void GPURenderer::Init() {
 	// Generate Kernel arguments
 	generateKernel->SetArguments(rayBuffer, cameraBuffer);
 	// Extend Kernel Arguments
-	extendKernel->SetArguments(rayBuffer, triBuffer, scene.tri_count);
+	extendKernel->SetArguments(rayBuffer, triBuffer, triBufferIdx, BVHBuffer, scene.tri_count);
 	// Shade Kernel Arguments
 	shadeKernel->SetArguments(rayBuffer, triBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer);
 
