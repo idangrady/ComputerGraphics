@@ -16,7 +16,7 @@ namespace Tmpl8
 		void KeyDown(int key);
 
 		static inline int* frame;
-		bool* justMoved = false;
+		int* framesSinceLastMoved;
 		float mult = 1.0f;
 		float3 mov;
 		float3 fovc; // interactive FOV
@@ -41,18 +41,20 @@ namespace Tmpl8
 
 		static inline Buffer* triBuffer;
 		static inline Buffer* matBuffer;
-		static inline Buffer* triColorBuffer;
+		static inline Buffer* triExBuffer;
 
 		static inline Kernel* screenKernel;
 		static inline Buffer* screenBuffer;
 
 		static inline Buffer* accumulatorBuffer;
+		static inline Buffer* intermediateBuffer;
 		static inline Buffer* frameCountBuffer; //We really need a buffer for this?
 
 		// Kernel that copies new rays to rays
 		static inline Kernel* copyKernel;
 		// Kernel that clears accumulator
 		static inline Kernel* clearKernel;
+		static inline Kernel* resetKernel;
 
 		// Config options
 		int max_depth = MAX_DEPTH;

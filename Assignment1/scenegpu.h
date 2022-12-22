@@ -6,6 +6,10 @@
 #include <config.h>
 
 namespace Tmpl8 {
+	__declspec(align(8)) struct TriExGPU {
+		cl_int matId;
+		cl_int textureId;
+	};
 	__declspec(align(64)) struct TriGPU {
 		cl_float4 vertex0, vertex1, vertex2;
 		cl_float N0, N1, N2;
@@ -16,98 +20,106 @@ namespace Tmpl8 {
 		cl_float4 albedoSpecularity;
 		cl_float4 absorption;
 		cl_bool isEmissive;
-		cl_int textureId;
+		cl_uint medium;
 	};
 
 	class SceneGPU {
 	public:
 		SceneGPU() {
-			tris = new TriGPU[4];
-			mats = new MaterialGPU[4];
-			// First test triangle
-			float3 v0_i = float3(3.f, -3.f, 3.f);
-			float3 v1_i = float3(3.f, 3.f, 3.f);
-			float3 v2_i = float3(3.f, -3.f, -3.f);
-			float3 c_i = (v0_i + v1_i + v2_i) / 3.f;
-			float3 N_i = normalize(cross((v1_i - v0_i), (v2_i - v0_i)));
-			tris[0] = {
-				{ v0_i.x, v0_i.y, v0_i.z, c_i.x },
-				{ v1_i.x, v1_i.y, v1_i.z, c_i.y },
-				{ v2_i.x, v2_i.y, v2_i.z, c_i.z },
-				N_i.x,
-				N_i.y,
-				N_i.z,
-				0,
-			};
-			// Second test triangle
-			float3 v0_j = float3(3.f, 3.f, -3.f);
-			float3 v1_j = float3(3.f, -3.f, -3.f);
-			float3 v2_j = float3(3.f, 3.f, 3.f);
-			float3 c_j = (v0_j + v1_j + v2_j) / 3.f;
-			float3 N_j = normalize(cross((v1_j - v0_j), (v2_j - v0_j)));
-			tris[1] = {
-				{v0_j.x, v0_j.y, v0_j.z, c_j.x},
-				{v1_j.x, v1_j.y, v1_j.z, c_j.y},
-				{v2_j.x, v2_j.y, v2_j.z, c_j.z},
-				N_j.x,
-				N_j.y,
-				N_j.z,
-				1,
-			};
-			// Lamp in the air
-			float3 v0_k = float3(1.5f, 2.95f, 1.5f);
-			float3 v1_k = float3(-1.5f, 2.95f, 1.5f);
-			float3 v2_k = float3(1.5f, 2.95f, -1.5f);
-			float3 c_k = (v0_k + v1_k + v2_k) / 3.f;
-			float3 N_k = normalize(cross((v1_k - v0_k), (v2_k - v0_k)));
-			tris[2] = {
-				{v0_k.x, v0_k.y, v0_k.z, c_k.x},
-				{v1_k.x, v1_k.y, v1_k.z, c_k.y},
-				{v2_k.x, v2_k.y, v2_k.z, c_k.z},
-				N_k.x,
-				N_k.y,
-				N_k.z,
-				2,
-			};
-			float3 v0_l = float3(-1.5f, 2.95f, -1.5f);
-			float3 v1_l = float3(1.5f, 2.95f, -1.5f);
-			float3 v2_l = float3(-1.5f, 2.95f, 1.5f);
-			float3 c_l = (v0_l + v1_l + v2_l) / 3.f;
-			float3 N_l = normalize(cross((v1_l - v0_l), (v2_l - v0_l)));
-			tris[3] = {
-				{v0_l.x, v0_l.y, v0_l.z, c_l.x},
-				{v1_l.x, v1_l.y, v1_l.z, c_l.y},
-				{v2_l.x, v2_l.y, v2_l.z, c_l.z},
-				N_l.x,
-				N_l.y,
-				N_l.z,
-				3,
-			};
-			MaterialGPU mat0 = {
+			tris = new TriGPU[tri_count];
+			triExs = new TriExGPU[tri_count];
+			mats = new MaterialGPU[mat_count];
+			MaterialGPU red = {
 				{1, 0, 0, 0},
 				{0, 0, 0, 0},
 				false,
-				-1,
+				0,
 			};
-			MaterialGPU mat1 = {
+			MaterialGPU green = {
 				{0, 1, 0, 0},
 				{0, 0, 0, 0},
 				false,
-				-1,
+				0,
 			};
-			MaterialGPU mat2 = {
+			MaterialGPU white = {
+				{0.8f, 0.8f, 0.8f, 0.f},
+				{0, 0, 0, 0},
+				false,
+				0,
+			};
+			MaterialGPU lamp = {
 				{24, 24, 24, 0},
 				{0, 0, 0, 0},
 				true,
+				0,
+			};
+			MaterialGPU redglass = {
+				{0, 0, 1, 0},
+				{0, 5, 5, 0},
+				false,
+				1,
+			};
+			mats[0] = red;
+			mats[1] = green;
+			mats[2] = white;
+			mats[3] = lamp;
+			mats[4] = redglass;
+			// Left wall 1
+			MakeTriangle(float3(-3.f, -3.f, 3.f), float3(-3.f, -3.f, -3.f), float3(-3.f, 3.f, 3.f), 0);
+			// Left wall 2
+			MakeTriangle(float3(-3.f, 3.f, -3.f), float3(-3.f, 3.f, 3.f), float3(-3.f, -3.f, -3.f), 0);
+			// Right wall 1
+			MakeTriangle(float3(3.f, -3.f, 3.f), float3(3.f, 3.f, 3.f), float3(3.f, -3.f, -3.f), 1);
+			// Right wall 2
+			MakeTriangle(float3(3.f, 3.f, -3.f), float3(3.f, -3.f, -3.f), float3(3.f, 3.f, 3.f), 1);
+			// Ceiling 1
+			MakeTriangle(float3(3.f, 3.f, 3.f), float3(-3.f, 3.f, 3.f), float3(3.f, 3.f,- 3.f), 2);
+			// Ceiling 2
+			MakeTriangle(float3(-3.f, 3.f, -3.f), float3(3.f, 3.f, -3.f), float3(-3.f, 3.f, 3.f), 2);
+			// Back wall 1
+			MakeTriangle(float3(-3.f, -3.f, 3.f), float3(-3.f, 3.f, 3.f), float3(3.f, -3.f, 3.f), 2);
+			// Back wall 2
+			MakeTriangle(float3(3.f, 3.f, 3.f), float3(3.f, -3.f, 3.f), float3(-3.f, 3.f, 3.f), 2);
+			// Floor 1
+			MakeTriangle(float3(3.f, -3.f, 3.f), float3(3.f, -3.f, -3.f), float3(-3.f, -3.f, 3.f), 2);
+			// Floor 2
+			MakeTriangle(float3(-3.f, -3.f, -3.f), float3(-3.f, -3.f, 3.f), float3(3.f, -3.f, -3.f), 2);
+			// Lamp in the air
+			MakeTriangle(float3(1.5f, 2.95f, 1.5f), float3(-1.5f, 2.95f, 1.5f), float3(1.5f, 2.95f, -1.5f), 3);
+			MakeTriangle(float3(-1.5f, 2.95f, -1.5f), float3(1.5f, 2.95f, -1.5f), float3(-1.5f, 2.95f, 1.5f), 3);
+			// Pyramid floor
+			MakeTriangle(float3(0.f, -2.5f, -1.f), float3(1.f, -2.5f, 0.f), float3(-1.f, -2.5f, 0.f), 4);
+			MakeTriangle(float3(0.f, -2.5f, 1.f), float3(-1.f, -2.5f, 0.f), float3(1.f, -2.5f, 0.f), 4);
+			// Pyramid walls
+			MakeTriangle(float3(0.f, -1.f, 0.f), float3(0.f, -2.5f, -1.f), float3(1.f, -2.5f, 0.f), 4);
+			MakeTriangle(float3(0.f, -1.f, 0.f), float3(1.f, -2.5f, 0.f), float3(0.f, -2.5f, 1.f), 4);
+			MakeTriangle(float3(0.f, -1.f, 0.f), float3(0.f, -2.5f, 1.f), float3(-1.f, -2.5f, 0.f), 4);
+			MakeTriangle(float3(0.f, -1.f, 0.f), float3(-1.f, -2.5f, 0.f), float3(0.f, -2.5f, -1.f), 4);
+		}
+		void MakeTriangle(float3 v0, float3 v1, float3 v2, int mat) {
+			static int id = 0;
+			float3 N = normalize(cross((v1 - v0), (v2 - v0)));
+			float3 C = (v0 + v1 + v2) / 3.f;
+			TriExGPU triEx = {
+				mat,
 				-1,
 			};
-			mats[0] = mat0;
-			mats[1] = mat1;
-			mats[2] = mat2;
-			mats[3] = mat2;
+			TriGPU tri = {
+				{v0.x, v0.y, v0.z, C.x},
+				{v1.x, v1.y, v1.z, C.y},
+				{v2.x, v2.y, v2.z, C.z},
+				N.x,
+				N.y,
+				N.z,
+				id,
+			};
+			triExs[id] = triEx;
+			tris[id++] = tri;
 		}
+		TriExGPU* triExs;
 		TriGPU* tris;
 		MaterialGPU* mats;
-		int tri_count = 4;
+		int tri_count = 18;
+		int mat_count = 5;
 	};
 }

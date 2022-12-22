@@ -10,11 +10,13 @@ void GPURenderer::Init() {
 	seedDepth = new uint[2];
 	seedDepth[0] = 0x1234578;
 	seedDepth[1] = 0;
-	justMoved = new bool;
+	framesSinceLastMoved = new int[1];
+	framesSinceLastMoved[0] = 0;
 
 	counters = new int[1];
 	counters[0] = 0; // Index 0 for normal rays
 	counterBuffer = new Buffer(sizeof(int) * 1, counters, 0);
+	movedBuffer = new Buffer(sizeof(int), framesSinceLastMoved, 0);
 	newRayBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * RAY_SIZE, 0, 0);
 	seedBuffer = new Buffer(sizeof(uint) * 2, seedDepth, CL_MEM_READ_WRITE);
 
@@ -32,6 +34,7 @@ void GPURenderer::Init() {
 	// Set the accumulator buffer. We write all the ray results to this 
 	// buffer, and then run a Kernel that copies it to screenBuffer
 	accumulatorBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * sizeof(float4), 0, 0);
+	intermediateBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * sizeof(float4), 0, 0);
 
 	// Generate Kernel
 	generateKernel = new Kernel("Kernels/generate.cl", "generate");
@@ -42,7 +45,8 @@ void GPURenderer::Init() {
 
 	// Make some dummy triangles
 	triBuffer = new Buffer(scene.tri_count * sizeof(TriGPU), scene.tris, CL_MEM_READ_ONLY);
-	matBuffer = new Buffer(scene.tri_count * sizeof(MaterialGPU), scene.mats, CL_MEM_READ_ONLY);
+	triExBuffer = new Buffer(scene.tri_count * sizeof(TriExGPU), scene.triExs, CL_MEM_READ_ONLY);
+	matBuffer = new Buffer(scene.mat_count * sizeof(MaterialGPU), scene.mats, CL_MEM_READ_ONLY);
 	//triColorBuffer = new Buffer(2 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
 
 	// Generate Kernel arguments
@@ -50,21 +54,25 @@ void GPURenderer::Init() {
 	// Extend Kernel Arguments
 	extendKernel->SetArguments(rayBuffer, triBuffer, scene.tri_count);
 	// Shade Kernel Arguments
-	shadeKernel->SetArguments(rayBuffer, triBuffer, matBuffer, accumulatorBuffer, counterBuffer, newRayBuffer, seedBuffer);
+	shadeKernel->SetArguments(rayBuffer, triBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer);
 
 	// Screen kernel
 	screenKernel = new Kernel("Kernels/screen.cl", "renderToScreen");
-	screenKernel->SetArguments(accumulatorBuffer, screenBuffer);
+	screenKernel->SetArguments(intermediateBuffer, accumulatorBuffer, screenBuffer, movedBuffer);
 
-	// Clear kernel. Clears the accumulator.
+	// Clear kernel. Clears the intermediate buffer.
 	clearKernel = new Kernel("Kernels/clear.cl", "clear");
-	clearKernel->SetArguments(accumulatorBuffer);
+	clearKernel->SetArguments(intermediateBuffer);
+	// Reset Kernel. Resets accumulator
+	resetKernel = new Kernel("Kernels/clear.cl", "resetAccumulator");
+	resetKernel->SetArguments(accumulatorBuffer);
 	// Copy Kernel for copying rays to ray buffer
 	copyKernel = new Kernel("Kernels/enqueue.cl", "copy");
 	copyKernel->SetArguments(rayBuffer, newRayBuffer);
 
 	cameraBuffer->CopyToDevice();
 	triBuffer->CopyToDevice();
+	triExBuffer->CopyToDevice();
 	matBuffer->CopyToDevice();
 	counterBuffer->CopyToDevice();
 	seedBuffer->CopyToDevice();
@@ -77,21 +85,25 @@ void Tmpl8::GPURenderer::Tick(float deltaTime)
 	//int info = clGetCommandQueueInfo(Kernel::GetQueue(), CL_QUEUE_REFERENCE_COUNT, 4, &c_size, &ac_csize);
 	//if (info == CL_SUCCESS) cout << "Size of queue:" << c_size << endl;
 	//else cout << "Error getting command queue info.\n";
-	if (length(mov) > 0) *justMoved = true;
+	if (length(mov) > 0) framesSinceLastMoved[0] = 0;
 	const float speed = 0.02f;
 	camera.move(mult * mov, speed);
 	cameraBuffer->CopyToDevice();
 	Timer t;
 	frame[0] += 1;
 	cl_event k_events[3];
+	clearKernel->Run(SCRWIDTH * SCRHEIGHT);
 	// Clear accumulator
-	clearKernel->Run(SCRWIDTH * SCRHEIGHT, 0, 0, &k_events[0]);
+	if (framesSinceLastMoved[0] == 0) {
+		resetKernel->Run(SCRWIDTH * SCRHEIGHT);
+		clFinish(Kernel::GetQueue());
+	}
 	// Run generate Kernel. Creates SCRWIDTH * SCRHEIGHT primary rays
-	generateKernel->Run(SCRWIDTH * SCRHEIGHT, 0, &k_events[0], &k_events[1]);
-	clFinish(Kernel::GetQueue());
+	generateKernel->Run(SCRWIDTH * SCRHEIGHT, 0, 0, &k_events[1]);
 	int val = SCRWIDTH * SCRHEIGHT;
 	int it = 0;
 	seedDepth[1] = 0;
+	framesSinceLastMoved[0] += 1;
 	while (true) {
 		seedDepth[0] = RandomUInt(seedDepth[0]);
 		seedDepth[1] += 1;
@@ -109,6 +121,7 @@ void Tmpl8::GPURenderer::Tick(float deltaTime)
 		val = counters[0];
 		copyKernel->Run(val, 0, 0, &k_events[1]);
 	}
+	movedBuffer->CopyToDevice();
 	// Draw to Screen
 	screenKernel->Run(SCRWIDTH * SCRHEIGHT, 0, &k_events[1], 0);
 	// Wait for finish
@@ -118,8 +131,7 @@ void Tmpl8::GPURenderer::Tick(float deltaTime)
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
 	if (alpha > 0.05f) alpha *= 0.5f;
 	float fps = 1000 / avg, rps = (SCRWIDTH * SCRHEIGHT) * fps;
-	printf("%5.2fms (%.1fps) - %.1fMrays/s\n", avg, fps, rps / 1000000);
-	//*justMoved = false;
+	//printf("%5.2fms (%.1fps) - %.1fMrays/s\n", avg, fps, rps / 1000000);
 }
 
 void Tmpl8::GPURenderer::MouseMove(int x, int y)
@@ -127,7 +139,7 @@ void Tmpl8::GPURenderer::MouseMove(int x, int y)
 	int2 mouseDiff = int2(SCRWIDTH / 2, SCRHEIGHT / 2) - int2(x, y);
 	const float angular_speed = 0.003f;
 	camera.rotate(mouseDiff, angular_speed);
-	*justMoved = true;
+	framesSinceLastMoved[0] = 0;
 }
 
 void Tmpl8::GPURenderer::KeyUp(int key)

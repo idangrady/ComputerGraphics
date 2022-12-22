@@ -30,12 +30,17 @@ typedef struct __attribute__((aligned(64)))
 	uint id;
 } Triangle;
 
+typedef struct __attribute__((aligned(8))){
+	int matId;
+	int textureID; // -1 if no texture
+} TriEx;
+
 typedef struct __attribute__((aligned(64)))
 {
 	float4 albedoSpecularity; // Albedo in first 3, specularity last float
 	float4 absorption; // If higher than zero, then the material is glass
 	bool isEmissive; // If this is a light
-	int textureID; // -1 if no texture
+	uint medium;
 } Material;
 
 inline uint GetObjectType(uint idx){
@@ -104,4 +109,18 @@ float3 CosineWeightedDiffuseReflection(uint* seed){
 	float x = r * cos(theta);
 	float y = r * sin(theta);
 	return (float3)(x, y, sqrt(1 - r0));
+}
+
+Ray reflectRay(Ray ray, float3 I, float3 N){
+	float3 dir = ray.D.xyz;
+	float3 reflected = normalize(dir - 2.0f * (dot(dir, N) * N));
+	Ray newRay = {
+		(float4)(I + (0.0002f * reflected), 1),
+		(float4)(reflected, 1),
+		(float4)(1.0f / reflected, 1e34f),
+		ray.pixel,
+		0,
+		(float2)(0,0)
+	};
+	return newRay;
 }
