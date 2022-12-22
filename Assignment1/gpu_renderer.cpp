@@ -7,9 +7,13 @@ const uint32_t RAY_SIZE = 64;
 void GPURenderer::Init() {
 	frame = new int[1];
 	frame[0] = 0;
-	seedDepth = new uint[2];
-	seedDepth[0] = 0x1234578;
-	seedDepth[1] = 0;
+	seeds = new unsigned long long[SCRWIDTH * SCRHEIGHT];
+	depth = new uint[1];
+	unsigned long long seedling = 0x1234567;
+	for (int i = 0; i < SCRWIDTH * SCRHEIGHT; i++) {
+		//seeds[i] = RandomUInt(seedling);
+		seeds[i] = RandomULong(seedling);
+	}
 	framesSinceLastMoved = new int[1];
 	framesSinceLastMoved[0] = 0;
 
@@ -18,7 +22,8 @@ void GPURenderer::Init() {
 	counterBuffer = new Buffer(sizeof(int) * 1, counters, 0);
 	movedBuffer = new Buffer(sizeof(int), framesSinceLastMoved, 0);
 	newRayBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * RAY_SIZE, 0, 0);
-	seedBuffer = new Buffer(sizeof(uint) * 2, seedDepth, CL_MEM_READ_WRITE);
+	seedBuffer = new Buffer(sizeof(unsigned long long) * SCRWIDTH * SCRHEIGHT , seeds, CL_MEM_READ_WRITE);
+	depthBuffer = new Buffer(sizeof(uint), depth, CL_MEM_READ_ONLY);
 
 	// We will explicity not use the (CPU located) screen as intermediate buffer, 
 	// instead we will use GPU to draw directly to the renderTarget, skipping an
@@ -54,7 +59,7 @@ void GPURenderer::Init() {
 	// Extend Kernel Arguments
 	extendKernel->SetArguments(rayBuffer, triBuffer, scene.tri_count);
 	// Shade Kernel Arguments
-	shadeKernel->SetArguments(rayBuffer, triBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer);
+	shadeKernel->SetArguments(rayBuffer, triBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer, depthBuffer);
 
 	// Screen kernel
 	screenKernel = new Kernel("Kernels/screen.cl", "renderToScreen");
@@ -102,20 +107,20 @@ void Tmpl8::GPURenderer::Tick(float deltaTime)
 	generateKernel->Run(SCRWIDTH * SCRHEIGHT, 0, 0, &k_events[1]);
 	int val = SCRWIDTH * SCRHEIGHT;
 	int it = 0;
-	seedDepth[1] = 0;
+	depth[0] = 0;
 	framesSinceLastMoved[0] += 1;
 	while (true) {
-		seedDepth[0] = RandomUInt(seedDepth[0]);
-		seedDepth[1] += 1;
 		counters[0] = 0;
-		seedBuffer->CopyToDevice();
+		depth[0] += 1;
+		depthBuffer->CopyToDevice();
 		counterBuffer->CopyToDevice();
 		cl_event c_events[3];
 		// Run Extend Kernel
 		extendKernel->Run(val, 0, &k_events[1], &c_events[0]);
+		//cout << "Extend Kernel Done" << endl;
 		// Run Shade Kernel
 		shadeKernel->Run(val, 0, &c_events[0], 0);
-		clFinish(Kernel::GetQueue());
+		//cout << "Shade Kernel Done" << endl;
 		counterBuffer->CopyFromDevice(true);
 		if (counters[0] == 0) break;
 		val = counters[0];
@@ -131,7 +136,7 @@ void Tmpl8::GPURenderer::Tick(float deltaTime)
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
 	if (alpha > 0.05f) alpha *= 0.5f;
 	float fps = 1000 / avg, rps = (SCRWIDTH * SCRHEIGHT) * fps;
-	//printf("%5.2fms (%.1fps) - %.1fMrays/s\n", avg, fps, rps / 1000000);
+	printf("%5.2fms (%.1fps) - %.1fMrays/s\n", avg, fps, rps / 1000000);
 }
 
 void Tmpl8::GPURenderer::MouseMove(int x, int y)
