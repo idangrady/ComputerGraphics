@@ -26,9 +26,9 @@ namespace Tmpl8 {
 	class SceneGPU {
 	public:
 		SceneGPU() {
-			tris = new TriGPU[tri_count];
-			triExs = new TriExGPU[tri_count];
-			mats = new MaterialGPU[mat_count];
+			//tris = new TriGPU[tri_count];
+			//triExs = new TriExGPU[tri_count];
+			//mats = new MaterialGPU[mat_count];
 			MaterialGPU red = {
 				{1, 0, 0, 0},
 				{0, 0, 0, 0},
@@ -55,15 +55,20 @@ namespace Tmpl8 {
 			};
 			MaterialGPU redglass = {
 				{0, 0, 1, 0},
-				{0.2, 0.8, 0.8, 0},
+				{0, 0, 0, 0},
 				false,
 				1,
 			};
-			mats[0] = red;
+			mats.push_back(red);
+			mats.push_back(green);
+			mats.push_back(white);
+			mats.push_back(lamp);
+			mats.push_back(redglass);
+			/*mats[0] = red;
 			mats[1] = green;
 			mats[2] = white;
 			mats[3] = lamp;
-			mats[4] = redglass;
+			mats[4] = redglass;*/
 			// Left wall 1
 			MakeTriangle(float3(-3.f, -3.f, 3.f), float3(-3.f, -3.f, -3.f), float3(-3.f, 3.f, 3.f), 0);
 			// Left wall 2
@@ -95,6 +100,9 @@ namespace Tmpl8 {
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(1.f, -2.5f, 0.f), float3(0.f, -2.5f, 1.f), 4);
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(0.f, -2.5f, 1.f), float3(-1.f, -2.5f, 0.f), 4);
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(-1.f, -2.5f, 0.f), float3(0.f, -2.5f, -1.f), 4);
+
+			// Load skybox
+			LoadSkyBox("assets/clarens_midday_4k.hdr");
 		}
 		void MakeTriangle(float3 v0, float3 v1, float3 v2, int mat) {
 			static int id = 0;
@@ -111,15 +119,52 @@ namespace Tmpl8 {
 				N.x,
 				N.y,
 				N.z,
-				id,
+				id++,
 			};
-			triExs[id] = triEx;
-			tris[id++] = tri;
+			triExs.push_back(triEx);
+			tris.push_back(tri);
 		}
-		TriExGPU* triExs;
-		TriGPU* tris;
-		MaterialGPU* mats;
-		int tri_count = 18;
-		int mat_count = 5;
+		void LoadSkyBox(const char* filename) {
+			float* data = stbi_loadf(filename, &width, &height, &nrChannels, 0);
+			if (data) {
+				skybox = new float4[width * height];
+				if (nrChannels == 3) //rgb
+				{
+					for (int i = 0; i < width * height; i++) {
+						skybox[i] = float4(data[3 * i], data[3 * i + 1], data[3 * i + 2], 1);
+					}
+				}
+				else if (nrChannels == 4) //rgba
+				{
+					for (int i = 0; i < width * height; i++) {
+						skybox[i] = float4(data[4 * i], data[4 * i + 1], data[4 * i + 2], data[4 * i + 3]);
+					}
+				}
+				else {
+					throw exception("Skybox image needs either 3 or 4 channels.");
+				}
+				cout << "Skybox loaded. W: " << width << " H: " << height << "\n";
+				loadedSkybox = true;
+				stbi_image_free(data);
+			}
+			else {
+				cout << stbi_failure_reason() << endl;
+				throw exception("Failed to load Skybox.");
+			}
+		}
+
+		vector<TriExGPU> triExs;
+		vector<TriGPU> tris;
+		vector<MaterialGPU> mats;
+		//TriExGPU* triExs;
+		//TriGPU* tris;
+		//MaterialGPU* mats;
+		//int tri_count = 18;
+		//int mat_count = 5;
+
+		//Skybox
+		float4* skybox;
+		int width, height, nrChannels;
+		bool loadedSkybox;
 	};
 }

@@ -7,9 +7,9 @@ const uint32_t RAY_SIZE = 64;
 void GPURenderer::Init() {
 	frame = new int[1];
 	frame[0] = 0;
-	seeds = new unsigned long long[SCRWIDTH * SCRHEIGHT];
+	seeds = new cl_ulong[SCRWIDTH * SCRHEIGHT];
 	depth = new uint[1];
-	unsigned long long seedling = 0x1234567;
+	cl_ulong seedling = 0x1234567;
 	for (int i = 0; i < SCRWIDTH * SCRHEIGHT; i++) {
 		//seeds[i] = RandomUInt(seedling);
 		seeds[i] = RandomULong(seedling);
@@ -22,8 +22,9 @@ void GPURenderer::Init() {
 	counterBuffer = new Buffer(sizeof(int) * 1, counters, 0);
 	movedBuffer = new Buffer(sizeof(int), framesSinceLastMoved, 0);
 	newRayBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * RAY_SIZE, 0, 0);
-	seedBuffer = new Buffer(sizeof(unsigned long long) * SCRWIDTH * SCRHEIGHT , seeds, CL_MEM_READ_WRITE);
+	seedBuffer = new Buffer(sizeof(cl_ulong) * SCRWIDTH * SCRHEIGHT , seeds, CL_MEM_READ_WRITE);
 	depthBuffer = new Buffer(sizeof(uint), depth, CL_MEM_READ_ONLY);
+	skyboxBuffer = new Buffer(sizeof(cl_float4) * scene.width * scene.height, scene.skybox, CL_MEM_READ_ONLY);
 
 	// We will explicity not use the (CPU located) screen as intermediate buffer, 
 	// instead we will use GPU to draw directly to the renderTarget, skipping an
@@ -49,17 +50,17 @@ void GPURenderer::Init() {
 	shadeKernel = new Kernel("Kernels/shade.cl", "shade");
 
 	// Make some dummy triangles
-	triBuffer = new Buffer(scene.tri_count * sizeof(TriGPU), scene.tris, CL_MEM_READ_ONLY);
-	triExBuffer = new Buffer(scene.tri_count * sizeof(TriExGPU), scene.triExs, CL_MEM_READ_ONLY);
-	matBuffer = new Buffer(scene.mat_count * sizeof(MaterialGPU), scene.mats, CL_MEM_READ_ONLY);
+	triBuffer = new Buffer(scene.tris.size() * sizeof(TriGPU), &(scene.tris[0]), CL_MEM_READ_ONLY);
+	triExBuffer = new Buffer(scene.tris.size() * sizeof(TriExGPU), &(scene.triExs[0]), CL_MEM_READ_ONLY);
+	matBuffer = new Buffer(scene.mats.size() * sizeof(MaterialGPU), &(scene.mats[0]), CL_MEM_READ_ONLY);
 	//triColorBuffer = new Buffer(2 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
 
 	// Generate Kernel arguments
 	generateKernel->SetArguments(rayBuffer, cameraBuffer);
 	// Extend Kernel Arguments
-	extendKernel->SetArguments(rayBuffer, triBuffer, scene.tri_count);
+	extendKernel->SetArguments(rayBuffer, triBuffer, (int)(scene.tris.size()));
 	// Shade Kernel Arguments
-	shadeKernel->SetArguments(rayBuffer, triBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer, depthBuffer);
+	shadeKernel->SetArguments(rayBuffer, triBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer, depthBuffer, skyboxBuffer, scene.width, scene.height);
 
 	// Screen kernel
 	screenKernel = new Kernel("Kernels/screen.cl", "renderToScreen");
@@ -81,6 +82,7 @@ void GPURenderer::Init() {
 	matBuffer->CopyToDevice();
 	counterBuffer->CopyToDevice();
 	seedBuffer->CopyToDevice();
+	skyboxBuffer->CopyToDevice();
 
 	//triColorBuffer->CopyToDevice();
 }

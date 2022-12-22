@@ -95,12 +95,10 @@ float3 GetDiffuseReflection(float3 N, ulong* seed){
 	float3 random_vec;
 	//printf("Entering while loop\n");
 	bool gen = false;
-	int i = 0;
 	while(!gen){
-		i++;
-		float x = 2.f * randomUFloat(seed) - 1.f;
-		float y = 2.f * randomUFloat(seed) - 1.f;
-		float z = 2.f * randomUFloat(seed) - 1.f;
+		float x = 2.f * randomFloat(seed) - 1.f;
+		float y = 2.f * randomFloat(seed) - 1.f;
+		float z = 2.f * randomFloat(seed) - 1.f;
 		//printf("Seed 3 = %u\n",seed);
 		//printf("x = %f, y = %f, z = %f\n", x, y, z);
 
@@ -110,17 +108,14 @@ float3 GetDiffuseReflection(float3 N, ulong* seed){
 			if(dot(N, random_vec) < 0) random_vec *= -1.f;
 			gen = true;;
 		}
-		if(i > 100){
-			printf("100 iterations? Vec = %f, %f, %f\n Seed = %u\n", x, y, z, *seed);
-		}
 	}
 	//printf("Exited diffuse reflection while loop\n");
 	return random_vec;
 }
 
 float3 CosineWeightedDiffuseReflection(ulong* seed){
-	float r0 = randomFloat(seed);
-	float r1 = randomFloat(seed);
+	float r0 = randomUFloat(seed);
+	float r1 = randomUFloat(seed);
 	float r = sqrt(r0);
 	float theta = 2 * PI * r1;
 	float x = r * cos(theta);
@@ -140,4 +135,18 @@ Ray reflectRay(Ray ray, float3 I, float3 N){
 		(float2)(0,0)
 	};
 	return newRay;
+}
+
+float4 getSkyBox(float3 dir, int width, int height, __constant float4* skybox) {
+	float phi = atan2(dir.x, dir.z);
+	float theta = atan2(hypot(dir.x, dir.z), dir.y);
+	if (phi < 0) phi += 2.0f * PI;
+	if (theta < 0) printf("Theta < 0?\n");
+	float x = phi / (2.0f * PI);
+	float y = theta / PI;
+	int x_ = (int)(x * width);
+	int y_ = (int)(y * height);
+	// float4 pixel = skybox[y_ * width + x_];
+	// printf("R: %f\n", pixel.x);
+	return skybox[y_ * width + x_];
 }
