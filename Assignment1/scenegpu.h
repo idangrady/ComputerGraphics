@@ -141,7 +141,7 @@ namespace Tmpl8 {
 			}
 			// abort split if one of the sides is empty
 			int leftCount = i - node.leftFirst;
-	//		if (leftCount == 0 || leftCount == node.triCount) return;
+			if (leftCount == 0 || leftCount == node.triCount) return;
 
 			int leftChildIdx = nodesUsed++;
 			int rightChildIdx = nodesUsed++;
@@ -245,21 +245,19 @@ namespace Tmpl8 {
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(0.f, -2.5f, 1.f), float3(-1.f, -2.5f, 0.f), 4);
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(-1.f, -2.5f, 0.f), float3(0.f, -2.5f, -1.f), 4);
 
-			SimpleBVHGPUInstance = new simpleBVHGPU();
-			SimpleBVHGPUInstance->add_primitive(arrPrimitive, tri_count);		// initlize the BVH tree
-			SimpleBVHGPUInstance->BuildBVH();
-			//BuildBVH();
-		}
+			//SimpleBVHGPUInstance = new simpleBVHGPU();
+			//SimpleBVHGPUInstance->add_primitive(arrPrimitive, tri_count);		// initlize the BVH tree
+			//SimpleBVHGPUInstance->BuildBVH();
 
-		void BuildBVH()
-		{
-			// assign all triangles to root node
-			BVH_GPU& root = bvhNode[rootNodeIdx];
-			root.leftFirst = 0;
-			root.triCount = tri_count;
-			UpdateNodeBounds(rootNodeIdx);
-			// subdivide recursively
-			Subdivide(rootNodeIdx);
+			bvhNode = new BVH_GPU[18 * 2 - 1];
+			arrPrimitiveIdx = new int[18];
+			for (int i = 0; i < 2*tri_count-1; i++) 
+			{
+				bvhNode[i] = BVH_GPU();
+				if (i < 18) arrPrimitiveIdx[i] = i;
+			}
+
+			BuildBVH();
 		}
  
 		void MakeTriangle(float3 v0, float3 v1, float3 v2, int mat, int obj = 0) {
@@ -284,6 +282,35 @@ namespace Tmpl8 {
 			arrPrimitive[id++] = tri;
 		}
 
+		void BuildBVH()
+		{
+			// assign all triangles to root node
+			BVH_GPU& root = bvhNode[rootNodeIdx];
+			root.leftFirst = 0;
+			root.triCount = N_bvh;
+			UpdateNodeBounds(rootNodeIdx);
+			// subdivide recursively
+			Subdivide(rootNodeIdx);
+		}
+
+		void UpdateNodeBounds(uint nodeIdx)
+		{
+			BVH_GPU& node = bvhNode[nodeIdx];
+
+			node.aabbMin = float4(1e30f);
+			node.aabbMax = float4(-1e30f);
+			for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
+			{
+				cout << "Current: " << arrPrimitiveIdx[first + i] << endl;
+				auto curr_val = arrPrimitiveIdx[first + i];
+				Primitive_GPU& ssass = arrPrimitive[curr_val];
+				cout << &ssass << endl;
+				pair<float4, float4> aabb_minMax = createAABB(&ssass);
+				node.aabbMin = fminf(node.aabbMin, aabb_minMax.first);
+				node.aabbMax = fmaxf(node.aabbMax, aabb_minMax.second);
+			}
+		}
+
 
 		void Subdivide(uint nodeIdx)
 		{
@@ -301,6 +328,7 @@ namespace Tmpl8 {
 			int j = i + node.triCount - 1;
 			while (i <= j)
 			{
+				auto centroid = getCentroid(&arrPrimitive[arrPrimitiveIdx[i]]);
 				if (getCentroid(&arrPrimitive[arrPrimitiveIdx[i]])[axis] < splitPos)
 					i++;
 				else
@@ -310,6 +338,10 @@ namespace Tmpl8 {
 			int leftCount = i - node.leftFirst;
 			if (leftCount == 0 || leftCount == node.triCount) return;
 
+			//------------------------------------------------------------------Start here ---Check this part please
+			// create child nodes
+
+			// create child nodes	
 			int leftChildIdx = nodesUsed++;
 			int rightChildIdx = nodesUsed++;
 			bvhNode[leftChildIdx].leftFirst = node.leftFirst;
@@ -320,31 +352,18 @@ namespace Tmpl8 {
 			node.triCount = 0;
 			UpdateNodeBounds(leftChildIdx);
 			UpdateNodeBounds(rightChildIdx);
-
+			// recurse
 			Subdivide(leftChildIdx);
 			Subdivide(rightChildIdx);
 		}
 
-		void UpdateNodeBounds(uint nodeIdx)
-		{
-			BVH_GPU& node = bvhNode[nodeIdx];
 
-			node.aabbMin = float4(1e30f);
-			node.aabbMax = float4(-1e30f);
-			for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
-			{
 
-				pair<float4, float4> aabb_minMax = createAABB(&arrPrimitive[arrPrimitiveIdx[first + i]]);
-				node.aabbMin = fminf(node.aabbMin, aabb_minMax.first);
-				node.aabbMax = fmaxf(node.aabbMax, aabb_minMax.second);
-			}
-		}
 
 		TriExGPU* triExs;
-		//Primitive_GPU* tris;
 		MaterialGPU* mats;
 
-		simpleBVHGPU* SimpleBVHGPUInstance;
+		//simpleBVHGPU* SimpleBVHGPUInstance;
 		BVH_GPU* bvhNode;
 		Primitive_GPU *arrPrimitive;
 		int* arrPrimitiveIdx;
