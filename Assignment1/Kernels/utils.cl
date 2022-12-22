@@ -1,6 +1,8 @@
 #define SCRWIDTH	1280
 #define SCRHEIGHT	720
 
+
+
 typedef struct __attribute__((aligned(64))) 
 {
 	// Access all float4 as float3 by using var_name.xyz
@@ -27,4 +29,12 @@ typedef struct __attribute__((aligned(64)))
 	float4 vertex2; //Stores C2 as 4th float
 	float N0, N1, N2;
 	uint id;
+	uint objId;
 } Triangle;
+
+typedef struct __attribute__((aligned(64)))
+{
+	float3 aabbMin, aabbMax;			// boundary
+	uint leftFirst, triCount;			// count and start
+} BVHNode;
+

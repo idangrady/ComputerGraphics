@@ -33,6 +33,10 @@ namespace Tmpl8
 
 		static inline Buffer* triBuffer;
 		static inline Buffer* triColorBuffer;
+		static inline Buffer* bvhNodeBuffer;
+		static inline Buffer* arrPrimitiveIdxBuffer;
+		static inline Buffer* arrPrimitiveBuffer;
+
 
 		static inline Kernel* screenKernel;
 		static inline Buffer* screenBuffer;

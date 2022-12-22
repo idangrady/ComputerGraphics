@@ -1,4 +1,5 @@
 #include "precomp.h"
+
 #pragma OPENCL EXTENSION cl_nvidia_printf : enable
 
 void GPURenderer::Init() {
@@ -28,13 +29,19 @@ void GPURenderer::Init() {
 	shadeKernel = new Kernel("Kernels/shade.cl", "shade");
 
 	// Make some dummy triangles
-	triBuffer = new Buffer(2 * sizeof(TriGPU), scene.tris, CL_MEM_READ_ONLY);
-	triColorBuffer = new Buffer(2 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
+	triBuffer = new Buffer(3 * sizeof(Primitive_GPU), scene.arrPrimitive, CL_MEM_READ_ONLY);
+	triColorBuffer = new Buffer(3 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
+
+	// Make some dummy triangles
+	bvhNodeBuffer = new Buffer(3 * sizeof(BVHNode), scene.bvhNode, CL_MEM_READ_ONLY);					// the 3 has to change!
+	arrPrimitiveBuffer = new Buffer(3 * sizeof(Primitive_GPU), scene.arrPrimitive, CL_MEM_READ_ONLY);		// the 3 has to change!
+	arrPrimitiveIdxBuffer = new Buffer(3 * sizeof(cl_uint), scene.arrPrimitiveIdx, CL_MEM_READ_ONLY);		// the 3 has to change!
+
 
 	// Generate Kernel arguments
 	generateKernel->SetArguments(rayBuffer, cameraBuffer);
 	// Extend Kernel Arguments
-	extendKernel->SetArguments(rayBuffer, triBuffer, 2);
+	extendKernel->SetArguments(rayBuffer,  triBuffer, bvhNodeBuffer, arrPrimitiveIdxBuffer, 3); //, bvhNodeBuffer,arrPrimitiveBuffer, arrPrimitiveIdxBuffer
 	// Shade Kernel Arguments
 	shadeKernel->SetArguments(rayBuffer, triBuffer, triColorBuffer, accumulatorBuffer);
 

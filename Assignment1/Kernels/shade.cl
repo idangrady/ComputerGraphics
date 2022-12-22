@@ -16,6 +16,8 @@ inline uint GetTriangleIndex(uint idx){
     return idx & mask;
 }
 
+
+
 __kernel void shade(__global Ray* rays, __constant Triangle* triangles, __constant float4* triangleColors, __global float4* accumulator){
 	int threadIdx = get_global_id(0);
     uint I = rays[threadIdx].primIdx;

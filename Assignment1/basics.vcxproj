@@ -143,9 +143,11 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="assimp-vc143-mt.dll" />
+    <None Include="Kernels\clear.cl" />
     <None Include="Kernels\example.cl" />
     <None Include="Kernels\extend.cl" />
     <None Include="Kernels\generate.cl" />
+    <None Include="Kernels\screen.cl" />
     <None Include="Kernels\shade.cl" />
     <None Include="Kernels\utils.cl" />
     <None Include="lib\assimp\*" />

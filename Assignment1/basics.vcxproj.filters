@@ -49,5 +49,7 @@
     <None Include="Kernels\extend.cl" />
     <None Include="Kernels\shade.cl" />
     <None Include="Kernels\utils.cl" />
+    <None Include="Kernels\clear.cl" />
+    <None Include="Kernels\screen.cl" />
   </ItemGroup>
 </Project>
