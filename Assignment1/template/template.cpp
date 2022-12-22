@@ -709,7 +709,7 @@ uint RandomUInt(uint& seed)
 	seed ^= seed << 5;
 	return seed;
 }
-unsigned long long RandomULong(unsigned long long& seed) {
+cl_ulong RandomULong(cl_ulong& seed) {
 	seed ^= seed << 13;
 	seed ^= seed >> 17;
 	seed ^= seed << 5;

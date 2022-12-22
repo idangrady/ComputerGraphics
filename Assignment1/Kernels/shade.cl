@@ -21,7 +21,8 @@ __kernel void shade(__global Ray *rays, __constant Triangle *triangles,
                     __constant TriEx *triExes, __constant Material *materials,
                     __global float4 *intermediate,
                     volatile __global int *counter, __global Ray *newRays,
-                    __global ulong *seeds, __constant uint *depth) {
+                    __global ulong *seeds, __constant uint *depth,
+                    __constant float4* skybox, int width, int height) {
   int threadIdx = get_global_id(0);
   if (depth[0] > 20) {
     // Max depth
@@ -33,7 +34,8 @@ __kernel void shade(__global Ray *rays, __constant Triangle *triangles,
   uint I = rays[threadIdx].primIdx;
   if (I == 0) {
     // printf("Hit Nothing.\n");
-    intermediate[rays[threadIdx].pixel] = (float4)(0, 0, 0, 0);
+    //intermediate[rays[threadIdx].pixel] = (float4)(0, 0, 0, 0);
+    intermediate[rays[threadIdx].pixel] *= getSkyBox(rays[threadIdx].D.xyz, width, height, skybox);
     return;
   }
   uint mI = GetTriangleIndex(I);

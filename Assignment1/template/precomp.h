@@ -451,7 +451,7 @@ inline uint RGBF32_to_RGB8( const float4* v )
 uint InitSeed( uint seedBase );
 uint RandomUInt();
 uint RandomUInt( uint& seed );
-unsigned long long RandomULong(unsigned long long& seed);
+cl_ulong RandomULong(cl_ulong& seed);
 float RandomFloat();
 float RandomFloat( uint& seed );
 float Rand( float range );
