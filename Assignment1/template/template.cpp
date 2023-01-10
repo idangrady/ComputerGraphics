@@ -137,7 +137,11 @@ void main()
 	// initialize application
 	InitRenderTarget(SCRWIDTH, SCRHEIGHT);
 	Surface* screen = new Surface(SCRWIDTH, SCRHEIGHT);
+#ifdef GPU
+	app = new GPURenderer();
+#else
 	app = new Renderer();
+#endif
 	app->screen = screen;
 	app->Init();
 	// done, enter main loop
@@ -705,6 +709,13 @@ uint RandomUInt(uint& seed)
 	seed ^= seed << 5;
 	return seed;
 }
+cl_ulong RandomULong(cl_ulong& seed) {
+	seed ^= seed << 13;
+	seed ^= seed >> 17;
+	seed ^= seed << 5;
+	return seed;
+}
+
 float RandomFloat(uint& seed) { return RandomUInt(seed) * 2.3283064365387e-10f; }
 
 // Perlin noise implementation - https://stackoverflow.com/questions/29711668/perlin-noise-generation
@@ -1136,6 +1147,9 @@ void Buffer::Clear()
 	CHECKCL(error = clEnqueueFillBuffer(Kernel::GetQueue(), deviceBuffer, &value, 4, 0, size, 0, 0, 0));
 #endif
 }
+
+// Pipe Constructor
+// ----------------------------------------------------------------------------
 
 // Kernel constructor
 // ----------------------------------------------------------------------------

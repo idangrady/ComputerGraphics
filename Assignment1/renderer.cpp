@@ -24,6 +24,8 @@ void Renderer::Init()
 	camera.move(float3(-3, 0, -4), 1.0f);
 	mat4 m = mat4::LookAt(camera.camPos, float3(0, -1, 0));
 	camera.matRotate(m);
+
+	//scene.bvh->BuildBVH();
 #endif
 }
 
@@ -41,7 +43,6 @@ float3 Renderer::Trace(Ray& ray)
 	if (id == scene.areaID) return scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
 	if (id == scene.spotID) return scene.area_lights[0].getcolor(); // I think this should be normlized other wise it will cause some issue 
 
-
 	float3 I = ray.O + ray.I.t * ray.D;
 	bool hit_back = false;
 	float3 N = scene.GetNormal(ray.I, I, ray.D, hit_back);
@@ -50,7 +51,6 @@ float3 Renderer::Trace(Ray& ray)
 
 	if (sendWhitted) { return Whitted(N, ray, m, hit_back); }
 	else return RE(N, ray, m, hit_back);
-
 }
 
 // -----------------------------------------------------------
@@ -107,13 +107,11 @@ void Renderer::Tick(float deltaTime)
 			screen->pixels[dest + x] = RGBF32_to_RGB8(&accumulator[x + y * SCRWIDTH]);
 #endif
 		}
-	
 	// performance report - running average - ms, MRays/s
 	static float avg = 10, alpha = 1;
 	avg = (1 - alpha) * avg + alpha * t.elapsed() * 1000;
 	if (alpha > 0.05f) alpha *= 0.5f;
 	float fps = 1000 / avg, rps = (SCRWIDTH * SCRHEIGHT) * fps;
-	//printf( "%5.2fms (%.1fps) - %.1fMrays/s\n", avg, fps, rps / 1000000 );
 }
 
 #if !STATIC

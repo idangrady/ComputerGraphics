@@ -13,13 +13,10 @@ class Camera
 public:
 	Camera()
 	{
-
 		double vfov = 90;
 		float theta = degrees_to_radians(vfov);
 		float h = tan(theta / 2.0f);
 		viewWidth = aspect * h;
-
-
 
 		// setup a basic view frustum
 		camPos_start = float3(0, 0, -2);
@@ -51,7 +48,6 @@ public:
 		bottomLeft += camPos;
 		topLeft += camPos;
 	}
-
 	void matRotate(mat4 m) {
 		topLeft = m * float3(-viewWidth, 1, 2);
 		topRight = m * float3(viewWidth, 1, 2);
@@ -60,7 +56,6 @@ public:
 		bottomLeft += camPos;
 		topLeft += camPos;
 	}
-
 	void move(float3 dir, float speed) {
 		// Movement in camera space
 		float3 move = mat4::RotateY(-yaw) * (mat4::RotateX(-pitch) * dir);
@@ -77,7 +72,6 @@ public:
 
 	float3 getdirection() {
 		return normalize((topRight + bottomLeft)/2 - camPos );}
-
 
 	Ray GetPrimaryRay( const int x, const int y )
 	{
@@ -106,11 +100,19 @@ public:
 
 	float aspect = (float)SCRWIDTH / (float)SCRHEIGHT;
 	float ZoomLevel = 1.0f;
-	float3 camPos, camPos_start, startDir;
+	float3 camPos_start, startDir;
 	float yaw = 0, pitch = 0;
 	mat4 cam_matrix;
 	float3 topLeft_start, topRight_start, bottomLeft_start;
-	float3 topLeft, topRight, bottomLeft;
+	union {
+		struct {
+			float3 camPos; float dummy0;
+			float3 topLeft; float dummy1;
+			float3 topRight; float dummy2;
+			float3 bottomLeft; float dummy3;
+		};
+		cl_float4 cameraFloats[4];
+	};
 
 	
 	float vfov;

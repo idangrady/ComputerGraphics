@@ -39,6 +39,7 @@ namespace Tmpl8
 		float3 fovc; // interactive FOV
 		Scene scene;
 		Camera camera;
+		
 
 		int max_depth = MAX_DEPTH;
 	};
