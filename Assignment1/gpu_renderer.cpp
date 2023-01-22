@@ -58,14 +58,18 @@ void GPURenderer::Init() {
 	//triColorBuffer = new Buffer(2 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
 
 	// BVH
-	BVHKernel = new Buffer((scene.trigCount*2-1)*sizeof(BVH_GPU), &(scene.BVHclass->arrPrimitive[0]), CL_MEM_READ_ONLY);
+	BVHKBuffer = new Buffer((scene.trigCount*2-1)*sizeof(BVH_GPU), &(scene.BVHclass->arrPrimitive[0]), CL_MEM_READ_ONLY);
 	ArrayBVHBuffer = new Buffer((scene.trigCount * 2 - 1) * sizeof(uint), &(scene.BVHclass->arrPrimitiveIdx[0]), CL_MEM_READ_ONLY);
-
+	
 
 	// Generate Kernel arguments
 	generateKernel->SetArguments(rayBuffer, cameraBuffer);
 	// Extend Kernel Arguments
-	extendKernel->SetArguments(rayBuffer, triBuffer, (int)(scene.tris.size()));
+	//extendKernel->SetArguments(rayBuffer, triBuffer, (int)(scene.tris.size()));
+	extendKernel->SetArguments(rayBuffer, triBuffer, ArrayBVHBuffer, BVHKBuffer, scene.trigCount);
+
+
+
 	// Shade Kernel Arguments
 	shadeKernel->SetArguments(rayBuffer, triBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer, depthBuffer, skyboxBuffer, scene.width, scene.height);
 
@@ -91,7 +95,7 @@ void GPURenderer::Init() {
 	seedBuffer->CopyToDevice();
 	skyboxBuffer->CopyToDevice();
 
-	BVHKernel->CopyToDevice();
+	BVHKBuffer->CopyToDevice();
 	ArrayBVHBuffer->CopyToDevice();
 	//triColorBuffer->CopyToDevice();
 }

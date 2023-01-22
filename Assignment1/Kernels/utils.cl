@@ -151,3 +151,9 @@ float4 getSkyBox(float3 dir, int width, int height, __constant float4* skybox) {
 	// printf("R: %f\n", pixel.x);
 	return skybox[y_ * width + x_];
 }
+
+typedef struct __attribute__((aligned(64)))
+{
+	float3 aabbMin, aabbMax;			// boundary
+	uint leftFirst, triCount;			// count and start
+} BVHNode;

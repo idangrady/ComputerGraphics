@@ -22,10 +22,12 @@ void IntersectTri(Ray* ray, __constant Triangle* tri)
     }
 }
 
-__kernel void extend(__global Ray* rays, __constant Triangle* triangles, int triangleCount) {
+__kernel void extend(__global Ray* rays, __constant Triangle* triangles,__constant int*arrPrimitivesIdx , __constant BVHNode* bvhnodes, int triangleCount) 
+ {
 	int threadIdx = get_global_id(0);
     Ray* ray = &rays[threadIdx];
     for(int i = 0; i < triangleCount; i++){
         IntersectTri(ray, &triangles[i]);
     }
 }
+//__kernel void extend(__global Ray* rays, __constant Triangle* triangles, int triangleCount)
