@@ -1,6 +1,8 @@
 #include "template/common.h"
 #define SCRWIDTH	1280
 #define SCRHEIGHT	720
+#define PrimitiveCount	18
+
 
 typedef struct __attribute__((aligned(64))) 
 {
