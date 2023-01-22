@@ -30,4 +30,3 @@ __kernel void extend(__global Ray* rays, __constant Triangle* triangles,__consta
         IntersectTri(ray, &triangles[i]);
     }
 }
-//__kernel void extend(__global Ray* rays, __constant Triangle* triangles, int triangleCount)
