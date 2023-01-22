@@ -37,6 +37,8 @@ void GPURenderer::Init() {
 	cameraBuffer = new Buffer(sizeof(float4) * 4, camera.cameraFloats, CL_MEM_READ_ONLY);
 	rayBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * RAY_SIZE, 0, 0);
 
+
+
 	// Set the accumulator buffer. We write all the ray results to this 
 	// buffer, and then run a Kernel that copies it to screenBuffer
 	accumulatorBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * sizeof(float4), 0, 0);
@@ -54,6 +56,11 @@ void GPURenderer::Init() {
 	triExBuffer = new Buffer(scene.tris.size() * sizeof(TriExGPU), &(scene.triExs[0]), CL_MEM_READ_ONLY);
 	matBuffer = new Buffer(scene.mats.size() * sizeof(MaterialGPU), &(scene.mats[0]), CL_MEM_READ_ONLY);
 	//triColorBuffer = new Buffer(2 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
+
+	// BVH
+	BVHKernel = new Buffer((scene.trigCount*2-1)*sizeof(BVH_GPU), &(scene.BVHclass->arrPrimitive[0]), CL_MEM_READ_ONLY);
+	ArrayBVHBuffer = new Buffer((scene.trigCount * 2 - 1) * sizeof(uint), &(scene.BVHclass->arrPrimitiveIdx[0]), CL_MEM_READ_ONLY);
+
 
 	// Generate Kernel arguments
 	generateKernel->SetArguments(rayBuffer, cameraBuffer);
@@ -84,6 +91,8 @@ void GPURenderer::Init() {
 	seedBuffer->CopyToDevice();
 	skyboxBuffer->CopyToDevice();
 
+	BVHKernel->CopyToDevice();
+	ArrayBVHBuffer->CopyToDevice();
 	//triColorBuffer->CopyToDevice();
 }
 

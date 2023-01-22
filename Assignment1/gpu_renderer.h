@@ -43,6 +43,10 @@ namespace Tmpl8
 		static inline Kernel* shadeKernel;
 		//static inline Kernel* connectKernel; // Don't need this I think
 
+		//BVH
+		static inline Buffer* BVHKernel;
+		static inline Buffer* ArrayBVHBuffer;
+
 		static inline Buffer* triBuffer;
 		static inline Buffer* matBuffer;
 		static inline Buffer* triExBuffer;
