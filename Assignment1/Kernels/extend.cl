@@ -61,6 +61,7 @@ __kernel void extend(__global Ray* rays, __constant Triangle* triangles,__consta
 					stack[stack_size++]= bvhnodes[arrPrimitivesIdx[node->leftFirst]];
 					stack[stack_size++]= bvhnodes[arrPrimitivesIdx[node->leftFirst+1]] ;
 				}
+
 		}
 	}
 

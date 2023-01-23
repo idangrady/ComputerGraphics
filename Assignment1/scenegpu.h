@@ -81,16 +81,6 @@ namespace Tmpl8 {
 				if (j < count) { arrPrimitiveIdx[j] = j; }
 			}
 
-
-			//for (int i = 0; i < 18; i++)
-			//{
-			//	TriGPU current = arrPrimitive[i];
-			//	cout << current.ObjId << endl;
-			//	// or
-			//	cout << (arrPrimitive + i)->ObjId << endl;
-			//	//or
-			//	cout << (*(arrPrimitive + i)).ObjId << endl;
-			//}
 		}
 	
 
@@ -219,17 +209,17 @@ namespace Tmpl8 {
 			mats[3] = lamp;
 			mats[4] = redglass;*/
 			// Left wall 1
-			MakeTriangle(float3(-300001.f, -3.f, 3.f), float3(-30001.f, -30001.f, -3.f), float3(-300001.f, 3.f, 3.f), 0);
+			MakeTriangle(float3(-3.f, -3.f, 3.f), float3(-3.f, -3.f, -3.f), float3(-3.f, 3.f, 3.f), 0);
 			// Left wall 2
-			MakeTriangle(float3(-3.f, 3.f, -3.f), float3(-3.f, 3006.f, 30008.f), float3(-3008.f, -3.f, -29999.f), 0);
+			MakeTriangle(float3(-3.f, 3.f, -3.f), float3(-3.f, 3.f, 3.f), float3(-3.f, -3.f, -3.f), 0);
 			// Right wall 1
-			MakeTriangle(float3(3.0005f, -3.f, 30002.f), float3(3.f, 3.f, 3.f), float3(3.f, -3.f, -3.f), 1);
+			MakeTriangle(float3(3.f, -3.f, 3.f), float3(3.f, 3.f, 3.f), float3(3.f, -3.f, -3.f), 1);
 			// Right wall 2
-			MakeTriangle(float3(3.f, 30007.f, -30007.f), float3(3.f, -3.f, -3.f), float3(3.f, 3.f, 3.f), 1);
+			MakeTriangle(float3(3.f, 3.f, -3.f), float3(3.f, -3.f, -3.f), float3(3.f, 3.f, 3.f), 1);
 			// Ceiling 1
 			MakeTriangle(float3(3.f, 3.f, 3.f), float3(-3.f, 3.f, 3.f), float3(3.f, 3.f, -3.f), 2);
 			// Ceiling 2
-			MakeTriangle(float3(-3.f, 30007.f, -3.f), float3(3.f, 3.f, -3.f), float3(-3.f, 3.f, 3.f), 2);
+			MakeTriangle(float3(-3.f, 3.f, -3.f), float3(3.f, 3.f, -3.f), float3(-3.f, 3.f, 3.f), 2);
 			// Back wall 1
 			MakeTriangle(float3(-3.f, -3.f, 3.f), float3(-3.f, 3.f, 3.f), float3(3.f, -3.f, 3.f), 2);
 			// Back wall 2
@@ -249,6 +239,7 @@ namespace Tmpl8 {
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(1.f, -2.5f, 0.f), float3(0.f, -2.5f, 1.f), 4);
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(0.f, -2.5f, 1.f), float3(-1.f, -2.5f, 0.f), 4);
 			MakeTriangle(float3(0.f, -1.f, 0.f), float3(-1.f, -2.5f, 0.f), float3(0.f, -2.5f, -1.f), 4);
+
 
 			// Load skybox
 			LoadSkyBox("assets/clarens_midday_4k.hdr");

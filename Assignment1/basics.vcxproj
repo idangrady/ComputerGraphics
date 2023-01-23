@@ -136,7 +136,6 @@
     <ClInclude Include="gpu_renderer.h" />
     <ClInclude Include="scenegpu.h" />
     <ClInclude Include="renderer.h" />
-    <ClInclude Include="simpleBVH.h" />
     <ClInclude Include="template\common.h" />
     <ClInclude Include="template\precomp.h" />
     <ClInclude Include="template\scene.h" />

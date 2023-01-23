@@ -22,9 +22,6 @@
     <ClInclude Include="config.h">
       <Filter>template</Filter>
     </ClInclude>
-    <ClInclude Include="simpleBVH.h">
-      <Filter>template\BVH</Filter>
-    </ClInclude>
     <ClInclude Include="bvh.h">
       <Filter>template\BVH</Filter>
     </ClInclude>
