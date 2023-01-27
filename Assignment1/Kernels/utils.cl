@@ -1,3 +1,5 @@
+#ifndef UTILS_IMPORT
+#define UTILS_IMPORT
 #include "template/common.h"
 #define SCRWIDTH	1280
 #define SCRHEIGHT	720
@@ -26,11 +28,11 @@ typedef struct __attribute__((aligned(64)))
 	float4 vertex0; //Stores C0 as 4th float
 	float4 vertex1; //Stores C1 as 4th float
 	float4 vertex2; //Stores C2 as 4th float
-	float N0, N1, N2;
-	uint id;
 } Triangle;
 
-typedef struct __attribute__((aligned(8))){
+typedef struct __attribute__((aligned(64))){
+	float4 N;
+	float2 uv0, uv1, uv2;
 	int matId;
 	int textureID; // -1 if no texture
 } TriEx;
@@ -42,6 +44,12 @@ typedef struct __attribute__((aligned(64)))
 	bool isEmissive; // If this is a light
 	uint medium;
 } Material;
+
+typedef struct __attribute__((aligned(8)))
+{
+	int width;
+	int height;
+} TextureData;
 
 inline uint GetObjectType(uint idx){
     const uint mask = ~0 << 30;
@@ -150,3 +158,4 @@ float4 getSkyBox(float3 dir, int width, int height, __constant float4* skybox) {
 	// printf("R: %f\n", pixel.x);
 	return skybox[y_ * width + x_];
 }
+#endif

@@ -1,6 +1,6 @@
 #include "Kernels/utils.cl"
 
-void IntersectTri(Ray* ray, __constant Triangle* tri) 
+void IntersectTri(Ray* ray, __constant Triangle* tri, int id) 
 {
     const float3 edge1 = tri->vertex1.xyz - tri->vertex0.xyz;
     const float3 edge2 = tri->vertex2.xyz - tri->vertex0.xyz;
@@ -18,7 +18,7 @@ void IntersectTri(Ray* ray, __constant Triangle* tri)
     if (t > 0.0001f && t < ray->rD_t.w){
         ray->rD_t.w = t;
         ray->uv = (float2)(u, v);
-        ray->primIdx = makeId(1, 0, tri->id);
+        ray->primIdx = makeId(1, 0, id);
     }
 }
 
@@ -26,6 +26,6 @@ __kernel void extend(__global Ray* rays, __constant Triangle* triangles, int tri
 	int threadIdx = get_global_id(0);
     Ray* ray = &rays[threadIdx];
     for(int i = 0; i < triangleCount; i++){
-        IntersectTri(ray, &triangles[i]);
+        IntersectTri(ray, &triangles[i], i);
     }
 }

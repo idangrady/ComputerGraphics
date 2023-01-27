@@ -24,6 +24,11 @@ void GPURenderer::Init() {
 	newRayBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * RAY_SIZE, 0, 0);
 	seedBuffer = new Buffer(sizeof(cl_ulong) * SCRWIDTH * SCRHEIGHT , seeds, CL_MEM_READ_WRITE);
 	depthBuffer = new Buffer(sizeof(uint), depth, CL_MEM_READ_ONLY);
+
+	textureBuffer = new Buffer(sizeof(uint) * scene.textures.size(), &(scene.textures[0]), CL_MEM_READ_ONLY);
+	textureDataBuffer = new Buffer(sizeof(TextureData) * scene.textureData.size(), &(scene.textureData[0]), CL_MEM_READ_ONLY);
+	textureIndexBuffer = new Buffer(sizeof(int) * scene.textureIndices.size(), &(scene.textureIndices[0]), CL_MEM_READ_ONLY);
+
 	skyboxBuffer = new Buffer(sizeof(cl_float4) * scene.width * scene.height, scene.skybox, CL_MEM_READ_ONLY);
 
 	// We will explicity not use the (CPU located) screen as intermediate buffer, 
@@ -49,9 +54,9 @@ void GPURenderer::Init() {
 	// Shade Kernel
 	shadeKernel = new Kernel("Kernels/shade.cl", "shade");
 
-	// Make some dummy triangles
+	// Triangle buffers
 	triBuffer = new Buffer(scene.tris.size() * sizeof(TriGPU), &(scene.tris[0]), CL_MEM_READ_ONLY);
-	triExBuffer = new Buffer(scene.tris.size() * sizeof(TriExGPU), &(scene.triExs[0]), CL_MEM_READ_ONLY);
+	triExBuffer = new Buffer(scene.triExs.size() * sizeof(TriExGPU), &(scene.triExs[0]), CL_MEM_READ_ONLY);
 	matBuffer = new Buffer(scene.mats.size() * sizeof(MaterialGPU), &(scene.mats[0]), CL_MEM_READ_ONLY);
 	//triColorBuffer = new Buffer(2 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
 
@@ -60,7 +65,8 @@ void GPURenderer::Init() {
 	// Extend Kernel Arguments
 	extendKernel->SetArguments(rayBuffer, triBuffer, (int)(scene.tris.size()));
 	// Shade Kernel Arguments
-	shadeKernel->SetArguments(rayBuffer, triBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer, depthBuffer, skyboxBuffer, scene.width, scene.height);
+	shadeKernel->SetArguments(rayBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer, depthBuffer, skyboxBuffer, scene.width, scene.height,
+		textureBuffer, textureDataBuffer, textureIndexBuffer);
 
 	// Screen kernel
 	screenKernel = new Kernel("Kernels/screen.cl", "renderToScreen");
@@ -78,11 +84,23 @@ void GPURenderer::Init() {
 
 	cameraBuffer->CopyToDevice();
 	triBuffer->CopyToDevice();
+	//cout << "TriBuffer okay!\n";
 	triExBuffer->CopyToDevice();
+	//cout << "TriExBuffer okay!\n";
 	matBuffer->CopyToDevice();
+	//cout << "matBuffer okay!\n";
 	counterBuffer->CopyToDevice();
+	//cout << "counterBuffer okay!\n";
 	seedBuffer->CopyToDevice();
+	//cout << "seedBuffer okay!\n";
 	skyboxBuffer->CopyToDevice();
+	//cout << "skyboxBuffer okay!\n";
+	if (scene.textures.size() > 0) {
+		textureBuffer->CopyToDevice();
+		textureDataBuffer->CopyToDevice();
+		textureIndexBuffer->CopyToDevice();
+	}
+	//cout << "Textures okay!\n";
 
 	//triColorBuffer->CopyToDevice();
 }

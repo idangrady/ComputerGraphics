@@ -43,9 +43,17 @@ namespace Tmpl8
 		static inline Kernel* shadeKernel;
 		//static inline Kernel* connectKernel; // Don't need this I think
 
+		// Triangle data
 		static inline Buffer* triBuffer;
-		static inline Buffer* matBuffer;
 		static inline Buffer* triExBuffer;
+
+		// Texture data
+		static inline Buffer* textureBuffer;
+		static inline Buffer* textureIndexBuffer;
+		static inline Buffer* textureDataBuffer;
+
+		// Material Data
+		static inline Buffer* matBuffer;
 
 		static inline Kernel* screenKernel;
 		static inline Buffer* screenBuffer;

@@ -17,14 +17,29 @@ float GetSnell(float refr, float cos_theta_i) {
   return k;
 }
 
-__kernel void shade(__global Ray *rays, __constant Triangle *triangles,
+float3 GetTexel(uint* texture, TextureData textureData, float2 uv_I, TriEx tri){
+  int width = textureData.width;
+  int height = textureData.height;
+  float2 uv = uv_I.x * tri.uv1 + uv_I.y * tri.uv2 + (1.0f - (uv_I.x + uv_I.y)) * tri.uv0;
+  int iu = (int)(uv.x * width) % width;
+  int iv = (int)(uv.y * height) % height;
+  uint texel = texture[iu + iv * width];
+  uchar x = (texel >> 16);
+  uchar y = (texel >> 8);
+  uchar z = texel;
+  return (float3)(x / 255.f, y / 255.f, z / 255.f);
+}
+
+__kernel void shade(__global Ray *rays,
                     __constant TriEx *triExes, __constant Material *materials,
                     __global float4 *intermediate,
                     volatile __global int *counter, __global Ray *newRays,
-                    __global ulong *seeds, __constant uint *depth,
-                    __constant float4* skybox, int width, int height) {
+                    __global ulong *seeds, __global uint *depth,
+                    __constant float4* skybox, __private int skyBoxWidth, __private int skyBoxHeight,
+                    __global uint* textures, __constant TextureData* textureData, __constant int* textureIndices) {
   int threadIdx = get_global_id(0);
-  if (depth[0] > 20) {
+  //if(threadIdx < 18) printf("N: %1.4v3hlf\n", triExes[threadIdx].N.xyz); 
+  if (depth[0] > 10) {
     // Max depth
     intermediate[rays[threadIdx].pixel] = (float4)(0, 0, 0, 0);
     return;
@@ -35,16 +50,17 @@ __kernel void shade(__global Ray *rays, __constant Triangle *triangles,
   if (I == 0) {
     // printf("Hit Nothing.\n");
     //intermediate[rays[threadIdx].pixel] = (float4)(0, 0, 0, 0);
-    intermediate[rays[threadIdx].pixel] *= getSkyBox(rays[threadIdx].D.xyz, width, height, skybox);
+    intermediate[rays[threadIdx].pixel] *= getSkyBox(rays[threadIdx].D.xyz, skyBoxWidth, skyBoxHeight, skybox);
     return;
   }
   uint mI = GetTriangleIndex(I);
-  Triangle tri = triangles[mI];
+  TriEx tri = triExes[mI];
   float3 I_loc =
       rays[threadIdx].O.xyz + rays[threadIdx].rD_t.w * rays[threadIdx].D.xyz;
-  Material m = materials[triExes[mI].matId];
+  Material m = materials[tri.matId];
   float d = 1.0f - m.albedoSpecularity.w;
-  float3 N = (float3)(tri.N0, tri.N1, tri.N2);
+  float3 N = tri.N.xyz;
+  //if(mI == 0) printf("Left wall normal: {%f, %f, %f}\n", tri.N.x, tri.N.y, tri.N.z);
   float r = randomFloat(&unique_seed);
   bool hit_back = false;
   if (dot(N, rays[threadIdx].D.xyz) > 0) {
@@ -53,7 +69,7 @@ __kernel void shade(__global Ray *rays, __constant Triangle *triangles,
   }
   if (m.isEmissive) {
     // printf("Hit light.\n");
-    intermediate[rays[threadIdx].pixel] *= (float4)(m.albedoSpecularity.xyz, 1);
+    if(!hit_back) intermediate[rays[threadIdx].pixel] *= (float4)(m.albedoSpecularity.xyz, 1);
   } else if (m.medium > 0) {
     float n1, n2;
     if (hit_back) {
@@ -83,7 +99,7 @@ __kernel void shade(__global Ray *rays, __constant Triangle *triangles,
                       0,
                       (float2)(0, 0)};
         uint old = atomic_add(counter, 1);
-        if(old > SCRWIDTH * SCRHEIGHT) printf("Huge counter!: %f", old);
+        //if(old > skyBoxWIDTH * SCRHEIGHT) printf("Error: Huge counter!: %i\n", old);
         newRays[old] = newray;
       } else { // Randomly reflected
         Ray newray = reflectRay(rays[threadIdx], I_loc, N);
@@ -93,7 +109,7 @@ __kernel void shade(__global Ray *rays, __constant Triangle *triangles,
     } else { // just reflect
       Ray newray = reflectRay(rays[threadIdx], I_loc, N);
       int old = atomic_add(counter, 1);
-      if(old > SCRWIDTH * SCRHEIGHT) printf("Huge counter!: %f", old);
+      //if(old > skyBoxWIDTH * SCRHEIGHT) printf("Error: Huge counter!: %i\n", old);
       newRays[old] = newray;
     }
     if (hit_back) {
@@ -105,10 +121,14 @@ __kernel void shade(__global Ray *rays, __constant Triangle *triangles,
     if (r > d) {
       Ray newray = reflectRay(rays[threadIdx], I_loc, N);
       uint old = atomic_add(counter, 1);
-      if(old > SCRWIDTH * SCRHEIGHT) printf("Huge counter!: %f", old);
+      //if(old > skyBoxWIDTH * SCRHEIGHT) printf("Error: Huge counter!: %i\n", old);
       newRays[old] = newray;
     } else {
-      float3 BRDF = m.albedoSpecularity.xyz * PI;
+      float3 BRDF = PI;
+      if(tri.textureID < 0) BRDF *= m.albedoSpecularity.xyz;
+      else {
+        BRDF *= GetTexel(textures, textureData[tri.textureID], rays[threadIdx].uv, tri);
+      }
       // printf("Hit triangle. Getting diffuse reflection.\n");
       float3 random_dir = GetDiffuseReflection(N, &unique_seed);
       Ray newray = {(float4)(I_loc + 0.0002f * random_dir, 1),
@@ -118,7 +138,7 @@ __kernel void shade(__global Ray *rays, __constant Triangle *triangles,
                     0,
                     (float2)(0, 0)};
       int old = atomic_add(counter, 1);
-      if(old > SCRWIDTH * SCRHEIGHT) printf("Huge counter!: %f", old);
+      //if(old > skyBoxWIDTH * SCRHEIGHT) printf("Error: Huge counter!: %i\n", old);
       newRays[old] = newray;
       float3 val = dot(N, random_dir) * BRDF * INVPI;
       intermediate[rays[threadIdx].pixel] *= (float4)(val, 1);
