@@ -1,5 +1,12 @@
 #include "precomp.h"
 #include <chrono>;
+#include <CL/cl.hpp>
+
+#include <CL/cl.hpp>
+#include <CL/cl_ext.h>
+
+
+
 #pragma OPENCL EXTENSION cl_nvidia_printf : enable
 
 const uint32_t RAY_SIZE = 64;
@@ -38,7 +45,9 @@ void GPURenderer::Init() {
 	rayBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * RAY_SIZE, 0, 0);
 
 
+	cl_int err;
 
+	// 
 	// Set the accumulator buffer. We write all the ray results to this 
 	// buffer, and then run a Kernel that copies it to screenBuffer
 	accumulatorBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * sizeof(float4), 0, 0);
@@ -58,15 +67,15 @@ void GPURenderer::Init() {
 	//triColorBuffer = new Buffer(2 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
 
 	// BVH
-	BVHKBuffer = new Buffer((scene.trigCount*2-1)*sizeof(BVH_GPU), &(scene.BVHclass->arrPrimitive[0]), CL_MEM_READ_ONLY);
-	ArrayBVHBuffer = new Buffer((scene.trigCount * 2 - 1) * sizeof(uint), &(scene.BVHclass->arrPrimitiveIdx[0]), CL_MEM_READ_ONLY);
+	BVHKBuffer = new Buffer((scene.BVHclass->count*2-1) * sizeof(BVH_GPU), (scene.BVHclass->bvhNode[0]), CL_MEM_COPY_HOST_PTR);
+	ArrayBVHBuffer = new Buffer((scene.trigCount) * sizeof(uint), &(scene.BVHclass->arrPrimitiveIdx), CL_MEM_COPY_HOST_PTR);
 	
 
 	// Generate Kernel arguments
 	generateKernel->SetArguments(rayBuffer, cameraBuffer);
 	// Extend Kernel Arguments
 	//extendKernel->SetArguments(rayBuffer, triBuffer, (int)(scene.tris.size()));
-	extendKernel->SetArguments(rayBuffer, triBuffer, ArrayBVHBuffer, BVHKBuffer, scene.trigCount);
+	extendKernel->SetArguments(rayBuffer, triBuffer, ArrayBVHBuffer, BVHKBuffer, numTrigs); // scene.trigCount
 
 
 
@@ -97,7 +106,6 @@ void GPURenderer::Init() {
 
 	BVHKBuffer->CopyToDevice();
 	ArrayBVHBuffer->CopyToDevice();
-	//triColorBuffer->CopyToDevice();
 }
 
 void Tmpl8::GPURenderer::Tick(float deltaTime)

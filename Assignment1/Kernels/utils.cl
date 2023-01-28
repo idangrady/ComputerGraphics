@@ -154,8 +154,11 @@ float4 getSkyBox(float3 dir, int width, int height, __constant float4* skybox) {
 	return skybox[y_ * width + x_];
 }
 
+
+
 typedef struct __attribute__((aligned(64)))
 {
-	float4 aabbMin, aabbMax;			// boundary
-	uint leftFirst, triCount;			// count and start
+    float4 aabbMin, aabbMax;            // boundary
+    uint leftFirst, triCount;            // count and start
+		uint ty;
 } BVHNode;

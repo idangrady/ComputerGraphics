@@ -20,19 +20,22 @@ void IntersectTri(Ray* ray, __constant Triangle* tri)
         ray->uv = (float2)(u, v);
         ray->primIdx = makeId(1, 0, tri->id);
     }
-}
 
-__kernel void extend(__global Ray* rays, __constant Triangle* triangles,__constant int*arrPrimitivesIdx , __constant BVHNode* bvhnodes, int triangleCount) 
+
+}__kernel void extend(__global Ray* rays, __constant Triangle* triangles,__constant int*arrPrimitivesIdx , __global BVHNode* bvhnodes, int triangleCount) 
  {
 	int threadIdx = get_global_id(0);
     Ray* ray = &rays[threadIdx];
  
  
  	int stack_size = 0;
+	BVHNode bvh = bvhnodes[1];
+	printf("val = %d\n", bvh.ty);
+
+
 
 	__local BVHNode stack[PrimitiveCount*2-1];									// stack for traversing the tree
 	stack[stack_size++] = bvhnodes[0];	
-	BVHNode node = stack[0];						// check if init is currect
 
 
     while(stack_size>0  )											// iterate over all values -> would run at most SCRWIDTH2*SCRHEIGHT2
@@ -51,16 +54,18 @@ __kernel void extend(__global Ray* rays, __constant Triangle* triangles,__consta
 
 		if (node->triCount>0)										// if root
 			{
+
 			    for(int i = 0; i < triangleCount; i++){
 				IntersectTri(ray, &triangles[i]);
 				}
 
 			}
-			else													// add to the stack 
-				{
-					stack[stack_size++]= bvhnodes[arrPrimitivesIdx[node->leftFirst]];
-					stack[stack_size++]= bvhnodes[arrPrimitivesIdx[node->leftFirst+1]] ;
-				}
+		else if (abs(node->leftFirst) > triangleCount) {}
+		else													// add to the stack 
+			{
+				stack[stack_size++]= bvhnodes[arrPrimitivesIdx[node->leftFirst]];
+				stack[stack_size++]= bvhnodes[arrPrimitivesIdx[node->leftFirst+1]] ;
+			}
 
 		}
 	}

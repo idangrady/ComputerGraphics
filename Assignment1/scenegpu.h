@@ -30,9 +30,11 @@ namespace Tmpl8 {
 
 	__declspec(align(64)) struct BVH_GPU
 	{
-		float4 aabbMin, aabbMax;			// boundary
-		uint leftFirst, triCount;			// count and start
+		float4 aabbMin, aabbMax;            // boundary
+		uint leftFirst, triCount;            // count and start
+		uint ty = 2;
 	};
+
 
 	pair<float4, float4>  createAABB(TriGPU &primitive)
 	{
