@@ -1,6 +1,7 @@
 __kernel void clear(__global float4* intermediate){
     int threadIdx = get_global_id(0);
     intermediate[threadIdx] = (float4)(1, 1, 1, 1);
+    //crossBuffer[threadIdx] = 0;
 }
 
 __kernel void resetAccumulator(__global float4* accumulator){

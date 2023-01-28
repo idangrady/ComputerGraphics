@@ -28,6 +28,7 @@ typedef struct __attribute__((aligned(64)))
 	float4 vertex0; //Stores C0 as 4th float
 	float4 vertex1; //Stores C1 as 4th float
 	float4 vertex2; //Stores C2 as 4th float
+	uint primType; // 0 = sky, 1 = triangle, 2 = sphere
 } Triangle;
 
 typedef struct __attribute__((aligned(64))){
@@ -50,6 +51,20 @@ typedef struct __attribute__((aligned(8)))
 	int width;
 	int height;
 } TextureData;
+
+typedef struct __attribute__((aligned(32)))
+{
+	union{
+		float4 aabbMin;
+		struct{float minx, miny, minz; uint leftFirst;};
+	};
+	union{
+		float4 aabbMax;
+		struct{float maxx, maxy, maxz; uint triCount;};
+	};
+	//float4 aabbMin, aabbMax;			// boundary
+	//uint leftFirst, triCount;			// count and start
+} BVHNode; 
 
 inline uint GetObjectType(uint idx){
     const uint mask = ~0 << 30;
@@ -146,6 +161,7 @@ Ray reflectRay(Ray ray, float3 I, float3 N){
 }
 
 float4 getSkyBox(float3 dir, int width, int height, __constant float4* skybox) {
+	//return (float4)(0.3, 0.3, 0.3, 1);
 	float phi = atan2(dir.x, dir.z);
 	float theta = atan2(hypot(dir.x, dir.z), dir.y);
 	if (phi < 0) phi += 2.0f * PI;

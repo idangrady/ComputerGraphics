@@ -52,6 +52,12 @@ namespace Tmpl8
 		static inline Buffer* textureIndexBuffer;
 		static inline Buffer* textureDataBuffer;
 
+		// BVH
+		static inline Buffer* bvhBuffer;
+		static inline Buffer* bvhTriIdxBuffer;
+		// Debug BVH
+		//static inline Buffer* BVHCrossBuffer;
+
 		// Material Data
 		static inline Buffer* matBuffer;
 

@@ -22,10 +22,63 @@ void IntersectTri(Ray* ray, __constant Triangle* tri, int id)
     }
 }
 
-__kernel void extend(__global Ray* rays, __constant Triangle* triangles, int triangleCount) {
-	int threadIdx = get_global_id(0);
+// __kernel void extend(__global Ray* rays, __constant Triangle* triangles, int triangleCount) {
+// 	int threadIdx = get_global_id(0);
+//     Ray* ray = &rays[threadIdx];
+//     for(int i = 0; i < triangleCount; i++){
+//         IntersectTri(ray, &triangles[i], i);
+//     }
+// }
+
+float IntersectAABB( Ray* ray, BVHNode* node )
+{
+    float tx1 = (node->minx - ray->O.x) * ray->rD_t.x, tx2 = (node->maxx - ray->O.x) * ray->rD_t.x;
+    float tmin = min( tx1, tx2 ), tmax = max( tx1, tx2 );
+    float ty1 = (node->miny - ray->O.y) * ray->rD_t.y, ty2 = (node->maxy - ray->O.y) * ray->rD_t.y;
+    tmin = max( tmin, min( ty1, ty2 ) ), tmax = min( tmax, max( ty1, ty2 ) );
+    float tz1 = (node->minz - ray->O.z) * ray->rD_t.z, tz2 = (node->maxz - ray->O.z) * ray->rD_t.z;
+    tmin = max( tmin, min( tz1, tz2 ) ), tmax = min( tmax, max( tz1, tz2 ) );
+    if (tmax >= tmin && tmin < ray->rD_t.w && tmax > 0) return tmin; else return 1e30f;
+}
+
+
+__kernel void extend(__global Ray* rays, __constant Triangle* triangles, __global BVHNode* bvhNodes, __constant uint* indicesIntoTriangles){
+    int threadIdx = get_global_id(0);
     Ray* ray = &rays[threadIdx];
-    for(int i = 0; i < triangleCount; i++){
-        IntersectTri(ray, &triangles[i], i);
+    BVHNode* node = &bvhNodes[0], *stack[32];
+    uint stackPtr = 0;
+    while(1)
+    {
+        if(node->triCount > 0) //leaf
+        {
+            for(uint i = 0; i < node->triCount; i++)
+            {
+                IntersectTri(ray, &triangles[indicesIntoTriangles[node->leftFirst + i]], indicesIntoTriangles[node->leftFirst + i]);
+            }
+            if(stackPtr == 0) break; else node = stack[--stackPtr];
+            continue;
+        }
+        BVHNode* child1 = &bvhNodes[node->leftFirst];
+        BVHNode* child2 = &bvhNodes[node->leftFirst + 1];
+        float dist1 = IntersectAABB(ray, child1);
+        float dist2 = IntersectAABB(ray, child2);
+        if(dist1 > dist2)
+        {
+            float d = dist1; dist1 = dist2; dist2 = d;
+            BVHNode* c = child1; child1 = child2; child2 = c;
+        }
+        if(dist1 == 1e30f)
+        {
+            if(stackPtr == 0) break; else node = stack[--stackPtr];   
+        }
+        else
+        {
+            //crossedBuffer[threadIdx] += 1;
+            node = child1;
+            if(dist2 != 1e30f){
+                //crossedBuffer[threadIdx] += 1;
+                stack[stackPtr++] = child2;
+            } 
+        }
     }
 }

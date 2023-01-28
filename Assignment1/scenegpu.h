@@ -14,6 +14,7 @@ namespace Tmpl8 {
 	};
 	__declspec(align(64)) struct TriGPU {
 		cl_float4 vertex0, vertex1, vertex2; // + centroid hidden in the last floats of the float4
+		cl_uint primType;
 	};
 
 	__declspec(align(64)) struct MaterialGPU {
@@ -27,6 +28,323 @@ namespace Tmpl8 {
 		cl_int width;
 		cl_int height;
 	};
+
+	__declspec(align(32)) struct BVHNodeGPU {
+		union { float4 aabbMin4; struct { float3 aabbMin; uint leftFirst; }; };
+		union { float4 aabbMax4; struct { float3 aabbMax; uint triCount; }; };
+	};
+
+	struct Bin { float3 aabbMin = 1e30f, aabbMax = -1e30f; int triCount = 0; };
+
+	class BinnedBVH 
+	{
+	public:
+		BinnedBVH(vector<TriGPU>* tris_pointer, vector<TriExGPU>* triExs_pointer) {
+			tris = tris_pointer;
+			triExs = triExs_pointer;
+			nodes = new BVHNodeGPU[2 * tris->size()];
+			triangleIndices = new uint[tris->size()];
+			for (int i = 0; i < tris->size(); i++) triangleIndices[i] = i;
+		}
+
+		void BuildBVH() 
+		{
+			BVHNodeGPU& root = nodes[0];
+			root.leftFirst = 0;
+			root.triCount = tris->size();
+			UpdateNodeBounds(rootNodeIdx);
+			SubDivide(rootNodeIdx);
+			cout << "BVH built with " << nodesUsed << " Nodes.\n";
+		}
+
+		void UpdateNodeBounds(uint nodeIdx) 
+		{
+			BVHNodeGPU& node = nodes[nodeIdx];
+			node.aabbMin = float3(1e30f);
+			node.aabbMax = float3(-1e30f);
+			for (uint first = node.leftFirst, i = 0; i < node.triCount; i++) {
+				uint leafTriIdx = triangleIndices[first + i];
+				TriGPU& leafTri = (*tris)[leafTriIdx];
+				float3 v0 = float3(leafTri.vertex0.x, leafTri.vertex0.y, leafTri.vertex0.z);
+				float3 v1 = float3(leafTri.vertex1.x, leafTri.vertex1.y, leafTri.vertex1.z);
+				float3 v2 = float3(leafTri.vertex2.x, leafTri.vertex2.y, leafTri.vertex2.z);
+
+				node.aabbMin = fminf(node.aabbMin, v0);
+				node.aabbMin = fminf(node.aabbMin, v1);
+				node.aabbMin = fminf(node.aabbMin, v2);
+				node.aabbMax = fmaxf(node.aabbMax, v0);
+				node.aabbMax = fmaxf(node.aabbMax, v1);
+				node.aabbMax = fmaxf(node.aabbMax, v2);
+			}
+		}
+
+		float HalfAABBArea(float3 aabbMin, float3 aabbMax) {
+			float3 e = aabbMax - aabbMin;
+			return e.x * e.y + e.y * e.z + e.z * e.x;
+		}
+
+		void GrowAABB(float3& aabbMin, float3& aabbMax, float3 p) {
+			aabbMin = fminf(aabbMin, p); aabbMax = fmaxf(aabbMax, p);
+		}
+
+		void GrowAABB(float3& aabbMin, float3& aabbMax, float3 min, float3 max) {
+			if (min.x == 1e30f) return;
+			GrowAABB(aabbMin, aabbMax, min);
+			GrowAABB(aabbMin, aabbMax, max);
+		}
+
+		void GrowAABB(float3* box, float3 min, float3 max) {
+			if (min.x == 1e30f) return;
+			GrowAABB(box[0], box[1], min);
+			GrowAABB(box[0], box[1], max);
+		}
+		// Yoinked from Jacco's blog
+		float FindSplitPlane(BVHNodeGPU& node, int& axis, float& splitPos) {
+			// BIN COUNT
+			const int BINS = 20;
+
+			float bestCost = 1e30f;
+			for (int a = 0; a < 3; a++)
+			{
+				float boundsMin = 1e30f, boundsMax = -1e30f;
+				for (int i = 0; i < node.triCount; i++)
+				{
+					TriGPU& triangle = (*tris)[triangleIndices[node.leftFirst + i]];
+					float3 centroid = {triangle.vertex0.w, triangle.vertex1.w, triangle.vertex2.w};
+					boundsMin = min(boundsMin, centroid[a]);
+					boundsMax = max(boundsMax, centroid[a]);
+				}
+				if (boundsMin == boundsMax) continue;
+				// populate the bins
+				Bin bin[BINS];
+				float scale = BINS / (boundsMax - boundsMin);
+				for (uint i = 0; i < node.triCount; i++)
+				{
+					TriGPU& triangle = (*tris)[triangleIndices[node.leftFirst + i]];
+					float3 centroid = { triangle.vertex0.w, triangle.vertex1.w, triangle.vertex2.w };
+					int binIdx = min(BINS - 1, (int)((centroid[a] - boundsMin) * scale));
+					bin[binIdx].triCount++;
+					float3 v0 = {triangle.vertex0.x, triangle.vertex0.y, triangle.vertex0.z};
+					float3 v1 = { triangle.vertex1.x, triangle.vertex1.y, triangle.vertex1.z };
+					float3 v2 = { triangle.vertex2.x, triangle.vertex2.y, triangle.vertex2.z };
+					GrowAABB(bin[binIdx].aabbMin, bin[binIdx].aabbMax, v0);
+					GrowAABB(bin[binIdx].aabbMin, bin[binIdx].aabbMax, v1);
+					GrowAABB(bin[binIdx].aabbMin, bin[binIdx].aabbMax, v2);
+				}
+				// gather data for the N-1 planes between the N bins
+				float leftArea[BINS - 1], rightArea[BINS - 1];
+				int leftCount[BINS - 1], rightCount[BINS - 1];
+				float3 leftBox[2], rightBox[2];
+				leftBox[0] = 1e30f;
+				leftBox[1] = -1e30f;
+				rightBox[0] = 1e30f;
+				rightBox[1] = -1e30f;
+				int leftSum = 0, rightSum = 0;
+				for (int i = 0; i < BINS - 1; i++)
+				{
+					leftSum += bin[i].triCount;
+					leftCount[i] = leftSum;
+					GrowAABB(leftBox, bin[i].aabbMin, bin[i].aabbMax);
+					leftArea[i] = HalfAABBArea(leftBox[0], leftBox[1]);
+					rightSum += bin[BINS - 1 - i].triCount;
+					rightCount[BINS - 2 - i] = rightSum;
+					GrowAABB(rightBox, bin[BINS - 1 - i].aabbMin, bin[BINS - 1 - i].aabbMax);
+					rightArea[BINS - 2 - i] = HalfAABBArea(rightBox[0], rightBox[1]);
+				}
+				// calculate SAH cost for the N-1 planes
+				scale = (boundsMax - boundsMin) / BINS;
+				for (int i = 0; i < BINS - 1; i++)
+				{
+					float planeCost =
+						leftCount[i] * leftArea[i] + rightCount[i] * rightArea[i];
+					if (planeCost < bestCost)
+						axis = a, splitPos = boundsMin + scale * (i + 1),
+						bestCost = planeCost;
+				}
+			}
+			return bestCost;
+		}
+
+		float CalculateNodecost(BVHNodeGPU& node) {
+			float area = HalfAABBArea(node.aabbMin, node.aabbMax);
+			return node.triCount * area;
+		}
+
+		void SubDivide(uint nodeIdx) 
+		{
+			// terminate recursion
+			BVHNodeGPU& node = nodes[nodeIdx];
+			if (node.triCount <= 1) return;
+			// determine split axis and position
+			float3 extent = node.aabbMax - node.aabbMin;
+			int axis = 0;
+			if (extent.y > extent.x) axis = 1;
+			if (extent.z > extent[axis]) axis = 2;
+			//float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+			float splitPos;
+			float noSplitCost = CalculateNodecost(node);
+			float splitCost = FindSplitPlane(node, axis, splitPos);
+			if (splitCost >= noSplitCost) return;
+			// in-place partition
+			int i = node.leftFirst;
+			int j = i + node.triCount - 1;
+			while (i <= j)
+			{
+				TriGPU curNode = (*tris)[triangleIndices[i]];
+				float3 centroid = float3(curNode.vertex0.w, curNode.vertex1.w, curNode.vertex2.w);
+				if (centroid[axis] < splitPos)
+					i++;
+				else
+					swap(triangleIndices[i], triangleIndices[j--]);
+			}
+			// abort split if one of the sides is empty
+			int leftCount = i - node.leftFirst;
+			if (leftCount == 0 || leftCount == node.triCount) return;
+
+			int leftChildIdx = nodesUsed++;
+			int rightChildIdx = nodesUsed++;
+			nodes[leftChildIdx].leftFirst = node.leftFirst;
+			nodes[leftChildIdx].triCount = leftCount;
+			nodes[rightChildIdx].leftFirst = i;
+			nodes[rightChildIdx].triCount = node.triCount - leftCount;
+			node.leftFirst = leftChildIdx;
+			node.triCount = 0;
+			UpdateNodeBounds(leftChildIdx);
+			UpdateNodeBounds(rightChildIdx);
+			// recurse
+			SubDivide(leftChildIdx);
+			SubDivide(rightChildIdx);
+		}
+		uint rootNodeIdx = 0;
+		uint nodesUsed = 2;
+		uint* triangleIndices;
+		vector<TriGPU>* tris;
+		vector<TriExGPU>* triExs;
+		BVHNodeGPU* nodes;
+	};
+
+	//class simpleBVHGPU
+	//{
+	//public:
+	//	simpleBVHGPU() {
+	//		this->arrPrimitive = new TriGPU[numTrigs];
+	//	};
+
+	//	void add_primitive(vector<TriGPU>& tris) {
+	//		memcpy(this->arrPrimitive, tris.data(), tris.size() * sizeof(TriGPU));
+	//		this->count = tris.size();
+
+	//		for (int j = 0; j < 2 * count - 1; j++) {
+	//			bvhNode[j] = new BVH_GPU();
+	//			if (j < count) { arrPrimitiveIdx[j] = j; }
+	//		}
+
+	//	}
+
+	//	pair<float3, float3> createAABB(TriGPU& primitive) {
+	//		float3 aabbMin = float3(1e30f);
+	//		float3 aabbMax = float3(-1e30f);
+	//		TriGPU& tri = primitive;
+	//		// Triangle
+	//		if (tri.primType == 1) {
+	//			float3 ver_1 = float3(primitive.vertex0.x, primitive.vertex0.y, primitive.vertex0.z);
+	//			float3 ver_2 = float3(primitive.vertex1.x, primitive.vertex1.y, primitive.vertex1.z);
+	//			float3 ver_3 = float3(primitive.vertex2.x, primitive.vertex2.y, primitive.vertex2.z);
+
+	//			aabbMin = fminf(aabbMin, ver_1);
+	//			aabbMin = fminf(aabbMin, ver_2);
+	//			aabbMin = fminf(aabbMin, ver_3);
+	//			aabbMax = fmaxf(aabbMax, ver_1);
+	//			aabbMax = fmaxf(aabbMax, ver_2);
+	//			aabbMax = fmaxf(aabbMax, ver_3);
+	//		}
+	//		//else if (primitive->ObjId == 1) {
+	//		//	// sphere
+	//		//	auto radius = primitive->vertex1.x;
+	//		//	aabbMin = getCentroid(primitive) - float4(radius, radius, radius, radius);
+	//		//	aabbMax = getCentroid(primitive) + float4(radius, radius, radius, radius);
+	//		//}
+	//		//else if (primitive->objId == 2) {
+	//		//	// Cube
+	//		//}
+	//		return std::make_pair(aabbMin, aabbMax);
+	//	}
+
+	//	void BuildBVH()
+	//	{
+	//		// assign all triangles to root node
+	//		BVH_GPU& root = *bvhNode[rootNodeIdx];
+	//		root.leftFirst = 0;
+	//		root.triCount = count;
+	//		UpdateNodeBounds(rootNodeIdx);
+	//		// subdivide recursively
+	//		Subdivide(rootNodeIdx);
+	//	}
+	//	void UpdateNodeBounds(uint nodeIdx)
+	//	{
+	//		BVH_GPU& node = *bvhNode[nodeIdx];
+
+	//		node.aabbMin = float3(1e30f);
+	//		node.aabbMax = float3(-1e30f);
+	//		for (uint first = node.leftFirst, i = 0; i < node.triCount; i++)
+	//		{
+	//			cout << "Current: " << arrPrimitiveIdx[first + i] << endl;
+	//			auto curr_val = arrPrimitiveIdx[first + i];
+	//			TriGPU& ssass = arrPrimitive[curr_val];
+
+	//			pair<float3, float3> aabb_minMax = createAABB(ssass);
+	//			node.aabbMin = fminf(node.aabbMin, aabb_minMax.first);
+	//			node.aabbMax = fmaxf(node.aabbMax, aabb_minMax.second);
+	//		}
+	//	}
+	//	void Subdivide(uint nodeIdx)
+	//	{
+	//		// terminate recursion
+	//		BVH_GPU& node = *bvhNode[nodeIdx];
+	//		if (node.triCount <= 1) return;
+	//		// determine split axis and position
+	//		float3 extent = node.aabbMax - node.aabbMin;
+	//		int axis = 0;
+	//		if (extent.y > extent.x) axis = 1;
+	//		if (extent.z > extent[axis]) axis = 2;
+	//		float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+	//		// in-place partition
+	//		int i = node.leftFirst;
+	//		int j = i + node.triCount - 1;
+	//		while (i <= j)
+	//		{
+	//			auto curNode = arrPrimitive[arrPrimitiveIdx[i]];
+	//			float3 centroid = float3(curNode.vertex0.w, curNode.vertex1.w, curNode.vertex2.w);
+	//			if (centroid[axis] < splitPos)
+	//				i++;
+	//			else
+	//				swap(arrPrimitiveIdx[i], arrPrimitiveIdx[j--]);
+	//		}
+	//		// abort split if one of the sides is empty
+	//		int leftCount = i - node.leftFirst;
+	//		if (leftCount == 0 || leftCount == node.triCount) return;
+
+	//		int leftChildIdx = nodesUsed++;
+	//		int rightChildIdx = nodesUsed++;
+	//		bvhNode[leftChildIdx]->leftFirst = node.leftFirst;
+	//		bvhNode[leftChildIdx]->triCount = leftCount;
+	//		bvhNode[rightChildIdx]->leftFirst = i;
+	//		bvhNode[rightChildIdx]->triCount = node.triCount - leftCount;
+	//		node.leftFirst = leftChildIdx;
+	//		node.triCount = 0;
+	//		UpdateNodeBounds(leftChildIdx);
+	//		UpdateNodeBounds(rightChildIdx);
+	//		// recurse
+	//		Subdivide(leftChildIdx);
+	//		Subdivide(rightChildIdx);
+	//	}
+	//	int count;
+	//	BVH_GPU* bvhNode[2 * numTrigs - 1];
+	//	uint rootNodeIdx = 0, nodesUsed = 1;
+	//	TriGPU* arrPrimitive;
+	//	int arrPrimitiveIdx[numTrigs];
+	//	int ss_ = 0;
+	//};
 
 	class MeshGPU {
 	public:
@@ -100,13 +418,17 @@ namespace Tmpl8 {
 			//triExs = new TriExGPU[tri_count];
 			//mats = new MaterialGPU[mat_count];
 
-			MakeSimpleScene();
-			//MakeComplexScene();
+			//MakeSimpleScene();
+			MakeComplexScene();
 
 			cout << "Scene constructed with " << tris.size() << " triangles.\n";
 
 			// Load skybox
 			LoadSkyBox("assets/clarens_midday_4k.hdr");
+
+			// Load BVH
+			bvh = new BinnedBVH(&tris, &triExs);
+			bvh->BuildBVH();
 		}
 
 		void MakeComplexScene() {
@@ -114,10 +436,11 @@ namespace Tmpl8 {
 				{1, 1, 1, 0},
 				{0, 0, 0, 0},
 				false,
-				0,
+				1,
 			};
 			mats.push_back(default);
-			loadModel("assets/chessboard/chessboard.obj");
+			loadModel("assets/wolf/Wolf.obj");
+			//loadModel("assets/chessboard/chessboard.obj");
 			meshPool[0]->MoveToPlane(-128, &tris);
 		}
 
@@ -210,6 +533,7 @@ namespace Tmpl8 {
 				{v0.x, v0.y, v0.z, C.x},
 				{v1.x, v1.y, v1.z, C.y},
 				{v2.x, v2.y, v2.z, C.z},
+				1,
 			};
 			triExs.push_back(triEx);
 			tris.push_back(tri);
@@ -324,6 +648,7 @@ namespace Tmpl8 {
 			// Potentially can be changed into a list of vertices and a list of face indices, to save memory.
 			for (uint i = 0; i < mesh->mNumFaces; i++) {
 				TriGPU tri_i = TriGPU();
+				tri_i.primType = 1;
 				TriExGPU triEx_i = TriExGPU();
 				aiFace face = mesh->mFaces[i];
 				aiVector3D c = (mesh->mVertices[face.mIndices[0]] + mesh->mVertices[face.mIndices[1]] + mesh->mVertices[face.mIndices[2]]) / 3.0f;
@@ -407,6 +732,7 @@ namespace Tmpl8 {
 		vector<int> textureIndices;
 		vector<TextureData> textureData;
 		vector<MeshGPU*> meshPool;
+		BinnedBVH* bvh;
 		//TriExGPU* triExs;
 		//TriGPU* tris;
 		//MaterialGPU* mats;

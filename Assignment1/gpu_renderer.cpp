@@ -25,9 +25,21 @@ void GPURenderer::Init() {
 	seedBuffer = new Buffer(sizeof(cl_ulong) * SCRWIDTH * SCRHEIGHT , seeds, CL_MEM_READ_WRITE);
 	depthBuffer = new Buffer(sizeof(uint), depth, CL_MEM_READ_ONLY);
 
-	textureBuffer = new Buffer(sizeof(uint) * scene.textures.size(), &(scene.textures[0]), CL_MEM_READ_ONLY);
-	textureDataBuffer = new Buffer(sizeof(TextureData) * scene.textureData.size(), &(scene.textureData[0]), CL_MEM_READ_ONLY);
-	textureIndexBuffer = new Buffer(sizeof(int) * scene.textureIndices.size(), &(scene.textureIndices[0]), CL_MEM_READ_ONLY);
+	if (scene.textures.size() > 0) {
+		textureBuffer = new Buffer(sizeof(uint) * scene.textures.size(), &(scene.textures[0]), CL_MEM_READ_ONLY);
+		textureDataBuffer = new Buffer(sizeof(TextureData) * scene.textureData.size(), &(scene.textureData[0]), CL_MEM_READ_ONLY);
+		textureIndexBuffer = new Buffer(sizeof(int) * scene.textureIndices.size(), &(scene.textureIndices[0]), CL_MEM_READ_ONLY);
+	}
+	else {
+		textureBuffer = new Buffer(sizeof(uint) * scene.textures.size(), NULL, CL_MEM_READ_ONLY);
+		textureDataBuffer = new Buffer(sizeof(TextureData) * scene.textureData.size(), NULL, CL_MEM_READ_ONLY);
+		textureIndexBuffer = new Buffer(sizeof(int) * scene.textureIndices.size(), NULL, CL_MEM_READ_ONLY);
+	}
+
+	// BVH
+	bvhBuffer = new Buffer(sizeof(BVHNodeGPU) * scene.bvh->nodesUsed, scene.bvh->nodes, CL_MEM_READ_ONLY);
+	bvhTriIdxBuffer = new Buffer(sizeof(uint) * scene.tris.size(), scene.bvh->triangleIndices, CL_MEM_READ_ONLY);
+	//BVHCrossBuffer = new Buffer(sizeof(uint) * SCRWIDTH * SCRHEIGHT, 0, 0);
 
 	skyboxBuffer = new Buffer(sizeof(cl_float4) * scene.width * scene.height, scene.skybox, CL_MEM_READ_ONLY);
 
@@ -63,7 +75,7 @@ void GPURenderer::Init() {
 	// Generate Kernel arguments
 	generateKernel->SetArguments(rayBuffer, cameraBuffer);
 	// Extend Kernel Arguments
-	extendKernel->SetArguments(rayBuffer, triBuffer, (int)(scene.tris.size()));
+	extendKernel->SetArguments(rayBuffer, triBuffer, bvhBuffer, bvhTriIdxBuffer);
 	// Shade Kernel Arguments
 	shadeKernel->SetArguments(rayBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer, depthBuffer, skyboxBuffer, scene.width, scene.height,
 		textureBuffer, textureDataBuffer, textureIndexBuffer);
@@ -100,6 +112,8 @@ void GPURenderer::Init() {
 		textureDataBuffer->CopyToDevice();
 		textureIndexBuffer->CopyToDevice();
 	}
+	bvhBuffer->CopyToDevice();
+	bvhTriIdxBuffer->CopyToDevice();
 	//cout << "Textures okay!\n";
 
 	//triColorBuffer->CopyToDevice();
@@ -113,6 +127,7 @@ void Tmpl8::GPURenderer::Tick(float deltaTime)
 	if (length(mov) > 0) framesSinceLastMoved[0] = 0;
 	const float speed = 0.02f;
 	camera.move(mult * mov, speed);
+	//cout << "Camera position: " << camera.camPos.x << ", " << camera.camPos.y << ", " << camera.camPos.z << endl;
 	cameraBuffer->CopyToDevice();
 	Timer t;
 	frame[0] += 1;

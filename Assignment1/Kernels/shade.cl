@@ -38,7 +38,6 @@ __kernel void shade(__global Ray *rays,
                     __constant float4* skybox, __private int skyBoxWidth, __private int skyBoxHeight,
                     __global uint* textures, __constant TextureData* textureData, __constant int* textureIndices) {
   int threadIdx = get_global_id(0);
-  //if(threadIdx < 18) printf("N: %1.4v3hlf\n", triExes[threadIdx].N.xyz); 
   if (depth[0] > 10) {
     // Max depth
     intermediate[rays[threadIdx].pixel] = (float4)(0, 0, 0, 0);
@@ -54,6 +53,7 @@ __kernel void shade(__global Ray *rays,
     return;
   }
   uint mI = GetTriangleIndex(I);
+  //printf("%i\r\n", mI);
   TriEx tri = triExes[mI];
   float3 I_loc =
       rays[threadIdx].O.xyz + rays[threadIdx].rD_t.w * rays[threadIdx].D.xyz;
