@@ -1,6 +1,6 @@
 #include "Kernels/utils.cl"
 
-void IntersectTri(Ray* ray, __constant Triangle* tri, int id) 
+void IntersectTri(Ray* ray, __global Triangle* tri, int id) 
 {
     const float3 edge1 = tri->vertex1.xyz - tri->vertex0.xyz;
     const float3 edge2 = tri->vertex2.xyz - tri->vertex0.xyz;
@@ -20,6 +20,24 @@ void IntersectTri(Ray* ray, __constant Triangle* tri, int id)
         ray->uv = (float2)(u, v);
         ray->primIdx = makeId(1, 0, id);
     }
+}
+
+int DoesIntersectTri(Ray* ray, __global Triangle* tri){
+    const float3 edge1 = tri->vertex1.xyz - tri->vertex0.xyz;
+    const float3 edge2 = tri->vertex2.xyz - tri->vertex0.xyz;
+    const float3 h = cross(ray->D.xyz, edge2);
+    const float a = dot(edge1, h);
+    if (a > -0.0001f && a < 0.0001f) return 0; // ray parallel to triangle
+    const float f = 1 / a;
+    const float3 s = ray->O.xyz - tri->vertex0.xyz;
+    const float u = f * dot(s, h);
+    if (u < 0 || u > 1) return 0;
+    const float3 q = cross(s, edge1);
+    const float v = f * dot(ray->D.xyz, q);
+    if (v < 0 || u + v > 1) return 0;
+    const float t = f * dot(edge2, q);
+    if(t > 0.0001f) return 1;
+    else return 0;
 }
 
 // __kernel void extend(__global Ray* rays, __constant Triangle* triangles, int triangleCount) {
@@ -42,7 +60,8 @@ float IntersectAABB( Ray* ray, BVHNode* node )
 }
 
 
-__kernel void extend(__global Ray* rays, __constant Triangle* triangles, __global BVHNode* bvhNodes, __constant uint* indicesIntoTriangles){
+//__kernel void extend(__global Ray* rays, __global Triangle* triangles, __global BVHNode* bvhNodes, __global uint* indicesIntoTriangles){
+__kernel void extend(__global Ray* rays, __global Triangle* triangles, __global BVHNode* bvhNodes, __global uint* indicesIntoTriangles, __global uint* crossedBuffer, __global uint* intersectedTriBuffer){
     int threadIdx = get_global_id(0);
     Ray* ray = &rays[threadIdx];
     BVHNode* node = &bvhNodes[0], *stack[32];
@@ -53,7 +72,9 @@ __kernel void extend(__global Ray* rays, __constant Triangle* triangles, __globa
         {
             for(uint i = 0; i < node->triCount; i++)
             {
-                IntersectTri(ray, &triangles[indicesIntoTriangles[node->leftFirst + i]], indicesIntoTriangles[node->leftFirst + i]);
+                //IntersectTri(ray, &triangles[indicesIntoTriangles[node->leftFirst + i]], indicesIntoTriangles[node->leftFirst + i]);
+                int does = DoesIntersectTri(ray, &triangles[indicesIntoTriangles[node->leftFirst + i]]);
+                intersectedTriBuffer[threadIdx] += does;
             }
             if(stackPtr == 0) break; else node = stack[--stackPtr];
             continue;
@@ -73,10 +94,10 @@ __kernel void extend(__global Ray* rays, __constant Triangle* triangles, __globa
         }
         else
         {
-            //crossedBuffer[threadIdx] += 1;
+            crossedBuffer[threadIdx] += 1;
             node = child1;
             if(dist2 != 1e30f){
-                //crossedBuffer[threadIdx] += 1;
+                crossedBuffer[threadIdx] += 1;
                 stack[stackPtr++] = child2;
             } 
         }

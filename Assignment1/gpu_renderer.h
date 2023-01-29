@@ -56,7 +56,8 @@ namespace Tmpl8
 		static inline Buffer* bvhBuffer;
 		static inline Buffer* bvhTriIdxBuffer;
 		// Debug BVH
-		//static inline Buffer* BVHCrossBuffer;
+		static inline Buffer* BVHCrossBuffer;
+		static inline Buffer* BVHIntersectedBuffer;
 
 		// Material Data
 		static inline Buffer* matBuffer;

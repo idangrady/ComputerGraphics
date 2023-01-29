@@ -43,8 +43,9 @@ namespace Tmpl8 {
 			tris = tris_pointer;
 			triExs = triExs_pointer;
 			nodes = new BVHNodeGPU[2 * tris->size()];
-			triangleIndices = new uint[tris->size()];
-			for (int i = 0; i < tris->size(); i++) triangleIndices[i] = i;
+			//triangleIndices = new uint[tris->size()];
+			triangleIndices.reserve(tris->size());
+			for (int i = 0; i < tris->size(); i++) triangleIndices.push_back(i);
 		}
 
 		void BuildBVH() 
@@ -217,7 +218,7 @@ namespace Tmpl8 {
 		}
 		uint rootNodeIdx = 0;
 		uint nodesUsed = 2;
-		uint* triangleIndices;
+		vector<uint> triangleIndices;
 		vector<TriGPU>* tris;
 		vector<TriExGPU>* triExs;
 		BVHNodeGPU* nodes;
@@ -424,7 +425,7 @@ namespace Tmpl8 {
 			cout << "Scene constructed with " << tris.size() << " triangles.\n";
 
 			// Load skybox
-			LoadSkyBox("assets/clarens_midday_4k.hdr");
+			LoadSkyBox("assets/kloppenheim_06_puresky_4k.hdr");
 
 			// Load BVH
 			bvh = new BinnedBVH(&tris, &triExs);
@@ -436,12 +437,27 @@ namespace Tmpl8 {
 				{1, 1, 1, 0},
 				{0, 0, 0, 0},
 				false,
-				1,
+				0,
 			};
+			MaterialGPU lamp = {
+				{24, 24, 24, 0},
+				{0, 0, 0, 0},
+				true,
+				0,
+			};
+
+
 			mats.push_back(default);
-			loadModel("assets/wolf/Wolf.obj");
+			mats.push_back(lamp);
+
+			// Lamp in the air
+			MakeTriangle(float3(1.5f, 5.95f, 1.5f), float3(-1.5f, 5.95f, 1.5f), float3(1.5f, 5.95f, -1.5f), 1);
+			MakeTriangle(float3(-1.5f, 5.95f, -1.5f), float3(1.5f, 5.95f, -1.5f), float3(-1.5f, 5.95f, 1.5f), 1);
+			loadModel("assets/room/room.obj");
+
 			//loadModel("assets/chessboard/chessboard.obj");
-			meshPool[0]->MoveToPlane(-128, &tris);
+			//meshPool[0]->MoveToPlane(-128, &tris);
+			//loadModel("assets/wolf/Wolf.obj");
 		}
 
 		void MakeSimpleScene() {
@@ -571,32 +587,46 @@ namespace Tmpl8 {
 		void loadModel(const char* file) {
 			Assimp::Importer importer;
 			const aiScene* scene = importer.ReadFile(file, aiProcess_Triangulate);
+			int matIndex = mats.size();
+			// Load all materials
+			for (int i = 0; i < scene->mNumMaterials; i++) {
+				MaterialGPU matGPU = {
+					{1, 1, 1, 0},
+					{0, 0, 0, 0},
+					false,
+					0,
+				};
+				aiMaterial* material = scene->mMaterials[i];
+				aiColor3D color;
+				material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
+				matGPU.albedoSpecularity = { color.r, color.g, color.b, 0 };
+				mats.push_back(matGPU);
+			}
 			if (!scene || scene->mFlags * AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
 				cout << "Error loading Mesh: " << importer.GetErrorString() << endl;
 				return;
 			}
-			processNode(scene->mRootNode, scene, file);
+			processNode(scene->mRootNode, scene, file, matIndex);
 			cout << "Model loaded. Mesh pool size: " << meshPool.size() << endl;
 			cout << "Texture pool size: " << textures.size() * 4 << " bytes.\n";
 		}
 
-		void processNode(aiNode* node, const aiScene* scene, const char* path) {
+		void processNode(aiNode* node, const aiScene* scene, const char* path, int matId) {
 			// process parent node
 			for (int i = 0; i < node->mNumMeshes; i++) {
 				int id = meshPool.size(); //TODO: REMOVE THE START AT 2
 				aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-				meshPool.push_back(makeMesh(mesh, scene, path, id, 0));
+				meshPool.push_back(makeMesh(mesh, scene, path, id, matId));
 			}
 			// go through children nodes
 			for (uint i = 0; i < node->mNumChildren; i++) {
-				processNode(node->mChildren[i], scene, path);
+				processNode(node->mChildren[i], scene, path, matId);
 			}
 		}
 
+		// Many thanks to the guy from learnopengl.com
 		MeshGPU* makeMesh(aiMesh* mesh, const aiScene* scene, string const& path, uint objId, int matId) {
 			MeshGPU* m = new MeshGPU(objId);
-			if (matId >= 0) m->material = &(mats[matId]);
-			else m->material = NULL;
 			m->index = tris.size();
 			m->triangleCount = mesh->mNumFaces;
 			m->textureIndex = -1;
@@ -605,9 +635,9 @@ namespace Tmpl8 {
 			string directory = path.substr(0, path.find_last_of('/'));
 
 
-			// Load texture
+			// Load material
 			aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
-			// Diffuse texture
+			// Load Diffuse texture
 			if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
 				aiString str;
 				material->GetTexture(aiTextureType_DIFFUSE, 0, &str);
@@ -620,7 +650,7 @@ namespace Tmpl8 {
 				TextureData td;
 				td.width = m->width;
 				td.height = m->height;
-				textureIndices.push_back(m->textureIndex);
+				textureIndices.push_back(textures.size());
 				textureData.push_back(td);
 
 				// Copy texture to vector
@@ -697,8 +727,10 @@ namespace Tmpl8 {
 					triEx_i.uv1 = { 0, 0 };
 					triEx_i.uv2 = { 0, 0 };
 				}
-				triEx_i.matId = matId;
+				triEx_i.matId = matId + mesh->mMaterialIndex;
+				//triEx_i.matId = 0;
 				triEx_i.textureId = m->textureIndex;
+				//triEx_i.textureId = -1;
 				//PrintTri(tri_i);
 				//PrintTriEx(triEx_i);
 				tris.push_back(tri_i);

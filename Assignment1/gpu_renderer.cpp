@@ -38,8 +38,11 @@ void GPURenderer::Init() {
 
 	// BVH
 	bvhBuffer = new Buffer(sizeof(BVHNodeGPU) * scene.bvh->nodesUsed, scene.bvh->nodes, CL_MEM_READ_ONLY);
-	bvhTriIdxBuffer = new Buffer(sizeof(uint) * scene.tris.size(), scene.bvh->triangleIndices, CL_MEM_READ_ONLY);
-	//BVHCrossBuffer = new Buffer(sizeof(uint) * SCRWIDTH * SCRHEIGHT, 0, 0);
+	bvhTriIdxBuffer = new Buffer(sizeof(uint) * scene.tris.size(), &(scene.bvh->triangleIndices[0]), CL_MEM_READ_ONLY);
+
+	// Debug
+	BVHCrossBuffer = new Buffer(sizeof(uint) * SCRWIDTH * SCRHEIGHT, 0, 0);
+	BVHIntersectedBuffer = new Buffer(sizeof(uint) * SCRWIDTH * SCRHEIGHT, 0, 0);
 
 	skyboxBuffer = new Buffer(sizeof(cl_float4) * scene.width * scene.height, scene.skybox, CL_MEM_READ_ONLY);
 
@@ -75,10 +78,10 @@ void GPURenderer::Init() {
 	// Generate Kernel arguments
 	generateKernel->SetArguments(rayBuffer, cameraBuffer);
 	// Extend Kernel Arguments
-	extendKernel->SetArguments(rayBuffer, triBuffer, bvhBuffer, bvhTriIdxBuffer);
+	extendKernel->SetArguments(rayBuffer, triBuffer, bvhBuffer, bvhTriIdxBuffer, BVHCrossBuffer, BVHIntersectedBuffer);
 	// Shade Kernel Arguments
 	shadeKernel->SetArguments(rayBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer, depthBuffer, skyboxBuffer, scene.width, scene.height,
-		textureBuffer, textureDataBuffer, textureIndexBuffer);
+		textureBuffer, textureDataBuffer, textureIndexBuffer, BVHCrossBuffer, BVHIntersectedBuffer);
 
 	// Screen kernel
 	screenKernel = new Kernel("Kernels/screen.cl", "renderToScreen");
@@ -86,7 +89,7 @@ void GPURenderer::Init() {
 
 	// Clear kernel. Clears the intermediate buffer.
 	clearKernel = new Kernel("Kernels/clear.cl", "clear");
-	clearKernel->SetArguments(intermediateBuffer);
+	clearKernel->SetArguments(intermediateBuffer, BVHCrossBuffer, BVHIntersectedBuffer);
 	// Reset Kernel. Resets accumulator
 	resetKernel = new Kernel("Kernels/clear.cl", "resetAccumulator");
 	resetKernel->SetArguments(accumulatorBuffer);
@@ -115,8 +118,9 @@ void GPURenderer::Init() {
 	bvhBuffer->CopyToDevice();
 	bvhTriIdxBuffer->CopyToDevice();
 	//cout << "Textures okay!\n";
+	//triColorBuffer->CopyToDevic();
 
-	//triColorBuffer->CopyToDevice();
+	cout << "Loading complete.\n";
 }
 
 void Tmpl8::GPURenderer::Tick(float deltaTime)

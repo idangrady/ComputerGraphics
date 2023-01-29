@@ -31,13 +31,16 @@ float3 GetTexel(uint* texture, TextureData textureData, float2 uv_I, TriEx tri){
 }
 
 __kernel void shade(__global Ray *rays,
-                    __constant TriEx *triExes, __constant Material *materials,
+                    __global TriEx *triExes, __constant Material *materials,
                     __global float4 *intermediate,
                     volatile __global int *counter, __global Ray *newRays,
                     __global ulong *seeds, __global uint *depth,
                     __constant float4* skybox, __private int skyBoxWidth, __private int skyBoxHeight,
-                    __global uint* textures, __constant TextureData* textureData, __constant int* textureIndices) {
+                    __global uint* textures, __constant TextureData* textureData, __constant int* textureIndices, __global uint* crossedBuffer,  __global uint* intersectedTriBuffer) {
+                    //__global uint* textures, __constant TextureData* textureData, __constant int* textureIndices) {
   int threadIdx = get_global_id(0);
+  intermediate[rays[threadIdx].pixel] = (float4)(2* intersectedTriBuffer[threadIdx], 2 * crossedBuffer[threadIdx] / 255.f, 0, 0);
+  return;
   if (depth[0] > 10) {
     // Max depth
     intermediate[rays[threadIdx].pixel] = (float4)(0, 0, 0, 0);
@@ -127,7 +130,7 @@ __kernel void shade(__global Ray *rays,
       float3 BRDF = PI;
       if(tri.textureID < 0) BRDF *= m.albedoSpecularity.xyz;
       else {
-        BRDF *= GetTexel(textures, textureData[tri.textureID], rays[threadIdx].uv, tri);
+        BRDF *= GetTexel(&textures[textureIndices[tri.textureID]], textureData[tri.textureID], rays[threadIdx].uv, tri);
       }
       // printf("Hit triangle. Getting diffuse reflection.\n");
       float3 random_dir = GetDiffuseReflection(N, &unique_seed);
