@@ -11,6 +11,7 @@ namespace Tmpl8 {
 		cl_float2 uv0, uv1, uv2;
 		cl_int matId;
 		cl_int textureId;
+		cl_float A; // Area
 	};
 	__declspec(align(64)) struct TriGPU {
 		cl_float4 vertex0, vertex1, vertex2; // + centroid hidden in the last floats of the float4
@@ -456,8 +457,7 @@ namespace Tmpl8 {
 			loadModel("assets/room/room.obj");
 
 			//loadModel("assets/chessboard/chessboard.obj");
-			//meshPool[0]->MoveToPlane(-128, &tris);
-			//loadModel("assets/wolf/Wolf.obj");
+			//loadModel("assets/cat/12221_Cat_v1_l3.obj");
 		}
 
 		void MakeSimpleScene() {
@@ -536,6 +536,7 @@ namespace Tmpl8 {
 
 		void MakeTriangle(float3 v0, float3 v1, float3 v2, int mat) {
 			float3 N = normalize(cross((v1 - v0), (v2 - v0)));
+			float A = length(cross(v1 - v0, v2 - v0));
 			float3 C = (v0 + v1 + v2) / 3.f;
 			TriExGPU triEx = {
 				{N.x, N.y, N.z, 0.f},
@@ -544,6 +545,7 @@ namespace Tmpl8 {
 				{0, 0},
 				mat,
 				-1,
+				A,
 			};
 			TriGPU tri = {
 				{v0.x, v0.y, v0.z, C.x},
@@ -551,6 +553,7 @@ namespace Tmpl8 {
 				{v2.x, v2.y, v2.z, C.z},
 				1,
 			};
+			if (mats[mat].isEmissive) lightIndices.push_back(tris.size());
 			triExs.push_back(triEx);
 			tris.push_back(tri);
 		}
@@ -704,7 +707,9 @@ namespace Tmpl8 {
 				float3 v1 = { tri_i.vertex1.x, tri_i.vertex1.y, tri_i.vertex1.z };
 				float3 v2 = { tri_i.vertex2.x, tri_i.vertex2.y, tri_i.vertex2.z };
 				float3 N = normalize(cross((v1 - v0), (v2 - v0)));
+				float A = 0.5f * length(cross(v1 - v0, v2 - v0));
 				triEx_i.N = { N.x, N.y, N.z, 0 };
+				triEx_i.A = A;
 				//// Load the normals
 				//if (mesh->HasNormals()) {
 				//}
@@ -764,6 +769,7 @@ namespace Tmpl8 {
 		vector<int> textureIndices;
 		vector<TextureData> textureData;
 		vector<MeshGPU*> meshPool;
+		vector<uint> lightIndices;
 		BinnedBVH* bvh;
 		//TriExGPU* triExs;
 		//TriGPU* tris;

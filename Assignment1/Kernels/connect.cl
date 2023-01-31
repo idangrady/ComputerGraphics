@@ -1,18 +1,17 @@
 #include "Kernels/utils.cl"
 
-// __kernel void extend(__global Ray* rays, __constant Triangle* triangles, int triangleCount) {
-// 	int threadIdx = get_global_id(0);
-//     Ray* ray = &rays[threadIdx];
-//     for(int i = 0; i < triangleCount; i++){
-//         IntersectTri(ray, &triangles[i], i);
-//     }
-// }
-
-__kernel void extend(__global Ray* rays, __global Triangle* triangles, __global BVHNode* bvhNodes, __global uint* indicesIntoTriangles){
+__kernel void connect(__global Ray* shadowRays, __global Triangle* triangles, __global TriEx *triExes,
+                      __constant Material *materials, __global BVHNode* bvhNodes, __global uint* indicesIntoTriangles,
+                      __global float4* intermediate, __global float4* accumulator, __global float* oldPDFs){
 //__kernel void extend(__global Ray* rays, __global Triangle* triangles, __global BVHNode* bvhNodes, __global uint* indicesIntoTriangles, __global uint* crossedBuffer, __global uint* intersectedTriBuffer){
     int threadIdx = get_global_id(0);
-    Ray* ray = &rays[threadIdx];
+    Ray* ray = &shadowRays[threadIdx];
+    float tLight = ray->rD_t.w;
     BVHNode* node = &bvhNodes[0], *stack[32];
+    Triangle* lightPrim = &triangles[GetTriangleIndex(ray->primIdx)];
+    TriEx* lightEx = &triExes[GetTriangleIndex(ray->primIdx)];
+    if(!(ray->uv.x > 0 && dot(lightEx->N.xyz, -ray->D.xyz))) return;
+    __constant Material* lightMat = &materials[lightEx->matId];
     uint stackPtr = 0;
     while(1)
     {
@@ -20,8 +19,10 @@ __kernel void extend(__global Ray* rays, __global Triangle* triangles, __global 
         {
             for(uint i = 0; i < node->triCount; i++)
             {
-                IntersectTri(ray, &triangles[indicesIntoTriangles[node->leftFirst + i]], indicesIntoTriangles[node->leftFirst + i]);
-                //int does = DoesIntersectTri(ray, &triangles[indicesIntoTriangles[node->leftFirst + i]]);
+                //IntersectTri(ray, &triangles[indicesIntoTriangles[node->leftFirst + i]], indicesIntoTriangles[node->leftFirst + i]);
+                if(ShadowRayIntersect(ray, &triangles[indicesIntoTriangles[node->leftFirst + i]])){
+                    return;
+                };
                 //intersectedTriBuffer[threadIdx] += does;
             }
             if(stackPtr == 0) break; else node = stack[--stackPtr];
@@ -50,4 +51,10 @@ __kernel void extend(__global Ray* rays, __global Triangle* triangles, __global 
             } 
         }
     }
+    float summedPDF = oldPDFs[ray->pixel];
+    float solidAngle = (dot(lightEx->N.xyz, -ray->D.xyz) * lightEx->A) / (ray->rD_t.w * ray->rD_t.w);
+    float lightPDF = 1.f / solidAngle;
+    summedPDF += lightPDF;
+    // We hide the N dot L from the intersected triangle in the uv coordinates of the ray
+    accumulator[ray->pixel] += intermediate[ray->pixel] * (float4)((ray->uv.x * (1.f / summedPDF) * lightMat->albedoSpecularity.xyz), 1);
 }

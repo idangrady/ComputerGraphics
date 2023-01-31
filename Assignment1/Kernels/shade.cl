@@ -30,49 +30,62 @@ float3 GetTexel(uint* texture, TextureData textureData, float2 uv_I, TriEx tri){
   return (float3)(x / 255.f, y / 255.f, z / 255.f);
 }
 
-__kernel void shade(__global Ray *rays,
+__kernel void shade(__global Ray *rays, __global Triangle* tris,
                     __global TriEx *triExes, __constant Material *materials,
-                    __global float4 *intermediate,
-                    volatile __global int *counter, __global Ray *newRays,
+                    __global float4 *intermediate, __global float* oldPDFs,
+                    volatile __global int *counter, __global Ray *newRays, __global Ray *shadowRays,
                     __global ulong *seeds, __global uint *depth,
                     __constant float4* skybox, __private int skyBoxWidth, __private int skyBoxHeight,
-                    __global uint* textures, __constant TextureData* textureData, __constant int* textureIndices, __global uint* crossedBuffer,  __global uint* intersectedTriBuffer) {
-                    //__global uint* textures, __constant TextureData* textureData, __constant int* textureIndices) {
+                    //__global uint* textures, __constant TextureData* textureData, __constant int* textureIndices, __global uint* crossedBuffer,  __global uint* intersectedTriBuffer) {
+                    __global uint* textures, __constant TextureData* textureData, __constant int* textureIndices,
+                    __constant uint* lightIndices, uint lightCount) {
   int threadIdx = get_global_id(0);
-  intermediate[rays[threadIdx].pixel] = (float4)(2* intersectedTriBuffer[threadIdx], 2 * crossedBuffer[threadIdx] / 255.f, 0, 0);
-  return;
+  Ray* ray = &rays[threadIdx];
+  //intermediate[ray->pixel] = (float4)(2* intersectedTriBuffer[threadIdx], 2 * crossedBuffer[threadIdx] / 255.f, 0, 0);
+  //return;
   if (depth[0] > 10) {
     // Max depth
-    intermediate[rays[threadIdx].pixel] = (float4)(0, 0, 0, 0);
+    intermediate[ray->pixel] = (float4)(0, 0, 0, 0);
     return;
   }
+  float oldPDF = oldPDFs[ray->pixel];
+  float INV_OldPDF = 1.0f / oldPDFs[ray->pixel];
   ulong unique_seed = seeds[threadIdx];
   // printf("Unique seed: %u\n", unique_seed);
-  uint I = rays[threadIdx].primIdx;
+  uint I = ray->primIdx;
   if (I == 0) {
     // printf("Hit Nothing.\n");
-    //intermediate[rays[threadIdx].pixel] = (float4)(0, 0, 0, 0);
-    intermediate[rays[threadIdx].pixel] *= getSkyBox(rays[threadIdx].D.xyz, skyBoxWidth, skyBoxHeight, skybox);
+    //intermediate[ray->pixel] = (float4)(0, 0, 0, 0);
+    // Postponed PDF division done here
+    intermediate[ray->pixel] *= INV_OldPDF * getSkyBox(ray->D.xyz, skyBoxWidth, skyBoxHeight, skybox);
     return;
   }
   uint mI = GetTriangleIndex(I);
   //printf("%i\r\n", mI);
   TriEx tri = triExes[mI];
   float3 I_loc =
-      rays[threadIdx].O.xyz + rays[threadIdx].rD_t.w * rays[threadIdx].D.xyz;
+      ray->O.xyz + ray->rD_t.w * ray->D.xyz;
   Material m = materials[tri.matId];
   float d = 1.0f - m.albedoSpecularity.w;
   float3 N = tri.N.xyz;
   //if(mI == 0) printf("Left wall normal: {%f, %f, %f}\n", tri.N.x, tri.N.y, tri.N.z);
   float r = randomFloat(&unique_seed);
   bool hit_back = false;
-  if (dot(N, rays[threadIdx].D.xyz) > 0) {
+  if (dot(N, ray->D.xyz) > 0) {
     hit_back = true;
     N = -N;
   }
   if (m.isEmissive) {
+    if(hit_back) intermediate[ray->pixel] = (float4)(0, 0, 0, 0);
     // printf("Hit light.\n");
-    if(!hit_back) intermediate[rays[threadIdx].pixel] *= (float4)(m.albedoSpecularity.xyz, 1);
+    else{
+      float solidAngle = (dot(N, -ray->D.xyz) * tri.A) / (ray->rD_t.w * ray->rD_t.w);
+      float lightPDF = 1.f / solidAngle;
+      float INV_combinedPDF = 1.f / (oldPDF + lightPDF);
+      //if(oldPDF == 1.0f) printf("lightPDF:\t%f\r\n", lightPDF);
+      // Postponed PDF division done here
+      intermediate[ray->pixel] *= INV_combinedPDF * (float4)(m.albedoSpecularity.xyz, 1);
+    } 
   } else if (m.medium > 0) {
     float n1, n2;
     if (hit_back) {
@@ -83,42 +96,42 @@ __kernel void shade(__global Ray *rays,
       n2 = 1.52f;
     }
     float refr = n1 / n2;
-    float traveled = rays[threadIdx].rD_t.w;
-    float cos_theta_i = dot(N, -rays[threadIdx].D.xyz);
+    float traveled = ray->rD_t.w;
+    float cos_theta_i = dot(N, -ray->D.xyz);
     float k = GetSnell(refr, cos_theta_i);
     float R = 1.0f;
     float T = 0.f;
     if (k > 0.00001f) {
       R = FresnelReflection(cos_theta_i, n1, n2, refr, N,
-                            rays[threadIdx].D.xyz);
+                            ray->D.xyz);
       if (r > R) { // Randomly refracted
-        float3 t_dir = (refr * rays[threadIdx].D.xyz) +
+        float3 t_dir = (refr * ray->D.xyz) +
                        (N * (refr * cos_theta_i - sqrt(k)));
         t_dir = normalize(t_dir);
         Ray newray = {(float4)(I_loc + (0.0002f * t_dir), 1),
                       (float4)(t_dir, 1),
                       (float4)(1.0f / t_dir, 1e34f),
-                      rays[threadIdx].pixel,
+                      ray->pixel,
                       0,
                       (float2)(0, 0)};
         uint old = atomic_add(counter, 1);
         //if(old > skyBoxWIDTH * SCRHEIGHT) printf("Error: Huge counter!: %i\n", old);
         newRays[old] = newray;
       } else { // Randomly reflected
-        Ray newray = reflectRay(rays[threadIdx], I_loc, N);
+        Ray newray = reflectRay(*ray, I_loc, N);
         int old = atomic_add(counter, 1);
         newRays[old] = newray;
       }
     } else { // just reflect
-      Ray newray = reflectRay(rays[threadIdx], I_loc, N);
+      Ray newray = reflectRay(*ray, I_loc, N);
       int old = atomic_add(counter, 1);
       //if(old > skyBoxWIDTH * SCRHEIGHT) printf("Error: Huge counter!: %i\n", old);
       newRays[old] = newray;
     }
     if (hit_back) {
-      intermediate[rays[threadIdx].pixel].x *= exp(-m.absorption.x * traveled);
-      intermediate[rays[threadIdx].pixel].y *= exp(-m.absorption.y * traveled);
-      intermediate[rays[threadIdx].pixel].z *= exp(-m.absorption.z * traveled);
+      intermediate[ray->pixel].x *= exp(-m.absorption.x * traveled);
+      intermediate[ray->pixel].y *= exp(-m.absorption.y * traveled);
+      intermediate[ray->pixel].z *= exp(-m.absorption.z * traveled);
     }
   } else {
     if (r > d) {
@@ -127,24 +140,43 @@ __kernel void shade(__global Ray *rays,
       //if(old > skyBoxWIDTH * SCRHEIGHT) printf("Error: Huge counter!: %i\n", old);
       newRays[old] = newray;
     } else {
-      float3 BRDF = PI;
+      int old_shadow = atomic_add(counter + 1, 1);
+      uint randomLightID = lightIndices[RandomLight(lightCount, &unique_seed)];
+      Triangle randomLight = tris[randomLightID];
+      float3 random_point = RandomPointOnLight(randomLight, &unique_seed);
+      //printf("Random Lightpoint:\t%2.2v3hlf\n", random_point);
+      float3 l_dir = normalize(random_point - I_loc);
+      Ray shadowray = {
+        (float4)(I_loc + 0.0002f * l_dir, 1),
+        (float4)(l_dir, 1),
+        (float4)(1.0f / l_dir, length(random_point - I_loc + 0.0002f * l_dir)),
+        ray->pixel,
+        makeId(1, 0, randomLightID),
+        (float2)(dot(N, l_dir), 0)
+      };
+      shadowRays[old_shadow] = shadowray;
+      // We can finally do the postponed PDF division from previous bounce
+      intermediate[ray->pixel] *= INV_OldPDF;
+      float3 BRDF = INVPI;
       if(tri.textureID < 0) BRDF *= m.albedoSpecularity.xyz;
       else {
-        BRDF *= GetTexel(&textures[textureIndices[tri.textureID]], textureData[tri.textureID], rays[threadIdx].uv, tri);
+        BRDF *= GetTexel(&(textures[textureIndices[tri.textureID]]), textureData[tri.textureID], ray->uv, tri);
       }
       // printf("Hit triangle. Getting diffuse reflection.\n");
       float3 random_dir = GetDiffuseReflection(N, &unique_seed);
       Ray newray = {(float4)(I_loc + 0.0002f * random_dir, 1),
                     (float4)(random_dir, 1),
                     (float4)(1.0f / random_dir, 1e34f),
-                    rays[threadIdx].pixel,
+                    ray->pixel,
                     0,
                     (float2)(0, 0)};
       int old = atomic_add(counter, 1);
       //if(old > skyBoxWIDTH * SCRHEIGHT) printf("Error: Huge counter!: %i\n", old);
       newRays[old] = newray;
-      float3 val = dot(N, random_dir) * BRDF * INVPI;
-      intermediate[rays[threadIdx].pixel] *= (float4)(val, 1);
+      // Insert the hemiPDF in the old PDF array for postponing
+      oldPDFs[ray->pixel] = 1.f / (PI * 2.f);
+      float3 val = dot(N, random_dir) * BRDF;// * INVPDF; PDF postponed!
+      intermediate[ray->pixel] *= (float4)(val, 1);
     }
   }
   seeds[threadIdx] = unique_seed;

@@ -17,13 +17,16 @@ void GPURenderer::Init() {
 	framesSinceLastMoved = new int[1];
 	framesSinceLastMoved[0] = 0;
 
-	counters = new int[1];
+	counters = new int[2];
 	counters[0] = 0; // Index 0 for normal rays
-	counterBuffer = new Buffer(sizeof(int) * 1, counters, 0);
+	counters[1] = 0; // Shadowrays
+	counterBuffer = new Buffer(sizeof(int) * 2, counters, 0);
 	movedBuffer = new Buffer(sizeof(int), framesSinceLastMoved, 0);
 	newRayBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * RAY_SIZE, 0, 0);
+	shadowRayBuffer = new Buffer(SCRWIDTH * SCRHEIGHT * RAY_SIZE, 0, 0);
 	seedBuffer = new Buffer(sizeof(cl_ulong) * SCRWIDTH * SCRHEIGHT , seeds, CL_MEM_READ_WRITE);
 	depthBuffer = new Buffer(sizeof(uint), depth, CL_MEM_READ_ONLY);
+	oldPDFBuffer = new Buffer(sizeof(float) * SCRWIDTH * SCRHEIGHT, 0, 0);
 
 	if (scene.textures.size() > 0) {
 		textureBuffer = new Buffer(sizeof(uint) * scene.textures.size(), &(scene.textures[0]), CL_MEM_READ_ONLY);
@@ -41,8 +44,8 @@ void GPURenderer::Init() {
 	bvhTriIdxBuffer = new Buffer(sizeof(uint) * scene.tris.size(), &(scene.bvh->triangleIndices[0]), CL_MEM_READ_ONLY);
 
 	// Debug
-	BVHCrossBuffer = new Buffer(sizeof(uint) * SCRWIDTH * SCRHEIGHT, 0, 0);
-	BVHIntersectedBuffer = new Buffer(sizeof(uint) * SCRWIDTH * SCRHEIGHT, 0, 0);
+	//BVHCrossBuffer = new Buffer(sizeof(uint) * SCRWIDTH * SCRHEIGHT, 0, 0);
+	//BVHIntersectedBuffer = new Buffer(sizeof(uint) * SCRWIDTH * SCRHEIGHT, 0, 0);
 
 	skyboxBuffer = new Buffer(sizeof(cl_float4) * scene.width * scene.height, scene.skybox, CL_MEM_READ_ONLY);
 
@@ -68,20 +71,26 @@ void GPURenderer::Init() {
 	extendKernel = new Kernel("Kernels/extend.cl", "extend");
 	// Shade Kernel
 	shadeKernel = new Kernel("Kernels/shade.cl", "shade");
+	// Connect Kernel
+	connectKernel = new Kernel("Kernels/connect.cl", "connect");
 
 	// Triangle buffers
 	triBuffer = new Buffer(scene.tris.size() * sizeof(TriGPU), &(scene.tris[0]), CL_MEM_READ_ONLY);
 	triExBuffer = new Buffer(scene.triExs.size() * sizeof(TriExGPU), &(scene.triExs[0]), CL_MEM_READ_ONLY);
 	matBuffer = new Buffer(scene.mats.size() * sizeof(MaterialGPU), &(scene.mats[0]), CL_MEM_READ_ONLY);
+	// Lights
+	lightIndexBuffer = new Buffer(scene.lightIndices.size() * sizeof(uint), &(scene.lightIndices[0]), CL_MEM_READ_ONLY);
 	//triColorBuffer = new Buffer(2 * sizeof(cl_float4), scene.triColors, CL_MEM_READ_ONLY);
 
 	// Generate Kernel arguments
 	generateKernel->SetArguments(rayBuffer, cameraBuffer);
 	// Extend Kernel Arguments
-	extendKernel->SetArguments(rayBuffer, triBuffer, bvhBuffer, bvhTriIdxBuffer, BVHCrossBuffer, BVHIntersectedBuffer);
+	extendKernel->SetArguments(rayBuffer, triBuffer, bvhBuffer, bvhTriIdxBuffer);// , BVHCrossBuffer, BVHIntersectedBuffer);
 	// Shade Kernel Arguments
-	shadeKernel->SetArguments(rayBuffer, triExBuffer, matBuffer, intermediateBuffer, counterBuffer, newRayBuffer, seedBuffer, depthBuffer, skyboxBuffer, scene.width, scene.height,
-		textureBuffer, textureDataBuffer, textureIndexBuffer, BVHCrossBuffer, BVHIntersectedBuffer);
+	shadeKernel->SetArguments(rayBuffer, triBuffer, triExBuffer, matBuffer, intermediateBuffer, oldPDFBuffer, counterBuffer, newRayBuffer, shadowRayBuffer, seedBuffer, depthBuffer, skyboxBuffer, scene.width, scene.height,
+		textureBuffer, textureDataBuffer, textureIndexBuffer, lightIndexBuffer, (int)(scene.lightIndices.size()));// , BVHCrossBuffer, BVHIntersectedBuffer);
+	// Connect Kernel Arguments
+	connectKernel->SetArguments(shadowRayBuffer, triBuffer, triExBuffer, matBuffer, bvhBuffer, bvhTriIdxBuffer, intermediateBuffer, accumulatorBuffer, oldPDFBuffer);
 
 	// Screen kernel
 	screenKernel = new Kernel("Kernels/screen.cl", "renderToScreen");
@@ -89,7 +98,7 @@ void GPURenderer::Init() {
 
 	// Clear kernel. Clears the intermediate buffer.
 	clearKernel = new Kernel("Kernels/clear.cl", "clear");
-	clearKernel->SetArguments(intermediateBuffer, BVHCrossBuffer, BVHIntersectedBuffer);
+	clearKernel->SetArguments(intermediateBuffer, oldPDFBuffer);// , BVHCrossBuffer, BVHIntersectedBuffer);
 	// Reset Kernel. Resets accumulator
 	resetKernel = new Kernel("Kernels/clear.cl", "resetAccumulator");
 	resetKernel->SetArguments(accumulatorBuffer);
@@ -117,6 +126,7 @@ void GPURenderer::Init() {
 	}
 	bvhBuffer->CopyToDevice();
 	bvhTriIdxBuffer->CopyToDevice();
+	lightIndexBuffer->CopyToDevice();
 	//cout << "Textures okay!\n";
 	//triColorBuffer->CopyToDevic();
 
@@ -150,6 +160,7 @@ void Tmpl8::GPURenderer::Tick(float deltaTime)
 	framesSinceLastMoved[0] += 1;
 	while (true) {
 		counters[0] = 0;
+		counters[1] = 0;
 		depth[0] += 1;
 		depthBuffer->CopyToDevice();
 		counterBuffer->CopyToDevice();
@@ -161,9 +172,11 @@ void Tmpl8::GPURenderer::Tick(float deltaTime)
 		shadeKernel->Run(val, 0, &c_events[0], 0);
 		//cout << "Shade Kernel Done" << endl;
 		counterBuffer->CopyFromDevice(true);
+		// Run Connect Kernel
+		connectKernel->Run(val, 0, 0, &c_events[1]);
 		if (counters[0] == 0) break;
 		val = counters[0];
-		copyKernel->Run(val, 0, 0, &k_events[1]);
+		copyKernel->Run(val, 0, &c_events[1], &k_events[1]);
 	}
 	movedBuffer->CopyToDevice();
 	// Draw to Screen

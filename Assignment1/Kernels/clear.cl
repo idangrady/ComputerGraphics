@@ -1,7 +1,10 @@
-__kernel void clear(__global float4* intermediate){
+__kernel void clear(__global float4* intermediate, __global float* oldPDFs){
+//__kernel void clear(__global float4* intermediate, __global uint* crossedBuffer, __global uint* intersectedTriBuffer){
     int threadIdx = get_global_id(0);
     intermediate[threadIdx] = (float4)(1, 1, 1, 1);
-    //crossBuffer[threadIdx] = 0;
+    oldPDFs[threadIdx] = 1.0f;
+    //crossedBuffer[threadIdx] = 0;
+    //intersectedTriBuffer[threadIdx] = 0;
 }
 
 __kernel void resetAccumulator(__global float4* accumulator){
