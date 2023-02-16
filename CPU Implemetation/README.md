@@ -13,4 +13,5 @@ This is assignment 2 for Advance Computer Graphic course at Utrecht University. 
   <img src="https://user-images.githubusercontent.com/63195210/219384651-1b7f7487-58c7-4a9f-a8a2-9e23bffd832a.png" width="300">
 </div>
 
-
+## Point For Improvement
+We built the simple version of the BVH (article 1). Yet, as we experimented, we noticed a strange phenomenon. A scene with 18 triangles had only 3 BVH nodes, where the right and left children of the root nodes had the same AABB coordinates. A specific scene construction was the main cause of this phenomenon. Due to a lack of time, this was not fixed for this submission, but will be for the following. 
