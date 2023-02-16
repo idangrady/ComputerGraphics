@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="renderer.cpp" />
+    <ClCompile Include="template\template.cpp">
+      <Filter>template</Filter>
+    </ClCompile>
+    <ClCompile Include="gpu_renderer.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="camera.h" />
+    <ClInclude Include="renderer.h" />
+    <ClInclude Include="template\common.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="template\scene.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="template\precomp.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="config.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="simpleBVH.h">
+      <Filter>template\BVH</Filter>
+    </ClInclude>
+    <ClInclude Include="bvh.h">
+      <Filter>template\BVH</Filter>
+    </ClInclude>
+    <ClInclude Include="gpu_renderer.h" />
+    <ClInclude Include="scenegpu.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="template">
+      <UniqueIdentifier>{a7d6e3cb-bfcd-438d-979f-17df241a55b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="template\BVH">
+      <UniqueIdentifier>{fc8dce6e-dd45-401d-92bc-82c47634a48c}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="template\LICENSE">
+      <Filter>template</Filter>
+    </None>
+    <None Include="assimp-vc143-mt.dll" />
+    <None Include="Kernels\example.cl" />
+    <None Include="Kernels\generate.cl" />
+    <None Include="Kernels\extend.cl" />
+    <None Include="Kernels\shade.cl" />
+    <None Include="Kernels\utils.cl" />
+  </ItemGroup>
+</Project>
