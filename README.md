@@ -1,8 +1,8 @@
 # ComputerGraphics
 
 <div style="display:flex;">
-<img src="https://user-images.githubusercontent.com/63195210/219386804-0eb87b6e-9d52-465b-8766-9c2812b4ac93.png" width="400">
-<img src="https://user-images.githubusercontent.com/63195210/219384232-d9ae721d-e61c-48fc-a08e-df947853c9f0.png" width="400">
+<img src="https://user-images.githubusercontent.com/63195210/219386804-0eb87b6e-9d52-465b-8766-9c2812b4ac93.png" width="350">
+<img src="https://user-images.githubusercontent.com/63195210/219384232-d9ae721d-e61c-48fc-a08e-df947853c9f0.png" width="350">
 </div>
 
 This is the repository for our Advanced Computer Graphics course project at Utrecht University. Our project focuses on physically-based rendering of 3D scenes, with a particular emphasis on making rendering more efficient through acceleration structure construction and traversal, and variance reduction. The project is divided into several folders:
